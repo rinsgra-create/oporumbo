@@ -111,6 +111,9 @@ padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -5px 20px #6d8aa418}
 .petFallback{
   z-index:1;
 }
+
+#threeStatus.ok{color:#168051;font-weight:800}
+#threeStatus.fail{color:#c13c45;font-weight:800}
 </style>
 </head>
 <body>
@@ -130,7 +133,7 @@ padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -5px 20px #6d8aa418}
     <img id="petHero" class="petImg" src="/static/auri.png" alt="Compañero">
   </div>
   <div class="petMeta">
-    <div><div class="petName"><span id="petName">Auri</span> <span id="level" class="mut">Nv. 1</span></div>
+    <div><div class="petName"><span id="petName">Auri</span> <span id="level" class="mut">Nv. 1</span> <span id="threeStatus" class="mut">· cargando 3D…</span></div>
       <div class="xpLine"><div id="xpFill" class="xpFill"></div></div></div>
     <div class="energy">⚡ <span id="energy">100%</span></div>
   </div>
@@ -309,6 +312,9 @@ async function clickTask(i,btn){
     return;
   }
 
+  // Immediate sensory feedback on the same user gesture.
+  sound();
+
   // 1) Mark complete immediately so the UI never feels unresponsive.
   t.done=true;
   state.xp=(state.xp||0)+(t.xp||0);
@@ -334,8 +340,7 @@ async function clickTask(i,btn){
     console.error('No se pudo guardar la tarea', e);
   }
 
-  // 2) Reward feedback after state is safely marked.
-  sound();
+  // 2) Visual reward after state is safely marked.
   try{
     await fly(btn);
   }catch(e){
@@ -459,12 +464,14 @@ function renderAll(){ensureState();renderToday();renderProgress();renderSyllabus
 function showScreen(name){['Today','Progress','Syllabus','Companion','Profile'].forEach(n=>$('screen'+n).classList.toggle('hidden',n!==name));document.querySelectorAll('.navBtn').forEach(b=>b.classList.toggle('active',b.dataset.screen===name))}
 document.querySelectorAll('.navBtn').forEach(b=>b.onclick=()=>showScreen(b.dataset.screen));
 document.querySelectorAll('.companion').forEach(c=>c.onclick=async()=>{state.pet.type=c.dataset.pet;state.pet.name=petNames[c.dataset.pet];const f=$('pet3dFrame');if(f&&f.contentWindow)f.contentWindow.postMessage({type:'setPet',pet:state.pet.type,stage:petStage()},'*');await persist();renderAll()});
-$('quickProfile').onclick=()=>showScreen('Profile');$('regen').onclick=regenerate;$('scoreRange').oninput=updateScore;$('saveScore').onclick=saveScore;$('cancelScore').onclick=()=>{$('scoreOverlay').classList.remove('show');pendingTest=null};$('closeReward').onclick=()=>$('rewardOverlay').classList.remove('show');
+$('quickProfile').onclick=()=>showScreen('Profile');$('regen').onclick=regenerate;$('scoreRange').oninput=updateScore;$('saveScore').addEventListener('pointerdown',()=>{ if(pendingTest) sound(); });
+$('saveScore').onclick=saveScore;$('cancelScore').onclick=()=>{$('scoreOverlay').classList.remove('show');pendingTest=null};$('closeReward').onclick=()=>$('rewardOverlay').classList.remove('show');
 $('studyMode').onchange=()=>{$('academyCard').classList.toggle('hidden',$('studyMode').value!=='academy')};$('saveSettings').onclick=saveSettings;
 $('soundSwitch').onclick=async()=>{state.prefs.sound=!state.prefs.sound;syncSwitches();await persist()};$('animSwitch').onclick=async()=>{state.prefs.animations=!state.prefs.animations;syncSwitches();await persist()};
 $('signup').onclick=()=>auth('/api/register');$('signin').onclick=()=>auth('/api/login');
 window.addEventListener('message',(ev)=>{
   if(ev.data && ev.data.type==='pet3dReady'){
+    const st=$('threeStatus'); if(st){st.textContent='· 3D activo';st.className='mut ok'}
     const fb=$('petHero');
     if(fb) fb.style.display='none';
     const f=$('pet3dFrame');
@@ -473,6 +480,18 @@ window.addEventListener('message',(ev)=>{
     }
   }
 });
+window.addEventListener('message',(ev)=>{
+  if(ev.data && ev.data.type==='pet3dFailed'){
+    const st=$('threeStatus'); if(st){st.textContent='· 3D no cargado';st.className='mut fail'}
+  }
+});
+setTimeout(()=>{
+  const st=$('threeStatus');
+  if(st && !st.classList.contains('ok')){
+    st.textContent='· 3D no cargado';
+    st.className='mut fail';
+  }
+},4500);
 boot();
 </script>
 </body>
