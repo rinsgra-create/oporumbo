@@ -1,0 +1,56 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>OpoRumbo V9</title>
+<style>
+body{margin:0;background:linear-gradient(#07111e,#10213b);min-height:100vh;color:#f7faff;font-family:system-ui,-apple-system,sans-serif}.w{max-width:780px;margin:auto;padding:18px 14px 80px}
+.card{background:#111c30;border:1px solid #263a5b;border-radius:20px;padding:15px;margin-top:13px}.mut{color:#9cb0d1;font-size:13px}
+input,select{width:100%;box-sizing:border-box;background:#0b1627;color:#fff;border:1px solid #314768;border-radius:12px;padding:12px;font-size:15px;margin-top:7px}
+button{border:0;border-radius:12px;padding:10px 12px;font-weight:800;background:#7dd3fc;color:#052233;margin-top:8px}.sec{background:#263956;color:#fff}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}.hidden{display:none}.task{padding:12px 0;border-bottom:1px solid #263a5b}.pill{font-size:11px;padding:5px 8px;border-radius:99px;background:#17334c}
+.modegrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.modebtn{background:#213653;color:#fff}.modebtn.active{background:#7dd3fc;color:#052233}
+.topics{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}.topicpick{background:#0c1728;border:1px solid #2c405f;padding:9px;border-radius:12px;cursor:pointer}.topicpick.sel{border-color:#7dd3fc;background:#17344b}
+.fixed{color:#86efac;font-size:11px}
+</style></head><body><div class="w"><h1>🧭 OpoRumbo V9</h1><div class="mut">Modo libre + modo academia</div>
+<div id="auth" class="card"><b>Entrar</b><input id="email" type="email" placeholder="Email"><input id="pass" type="password" placeholder="Contraseña"><div class="row"><button onclick="signup()" style="flex:1">CREAR CUENTA</button><button onclick="signin()" class="sec" style="flex:1">ENTRAR</button></div><div id="msg" class="mut"></div></div>
+<div id="inside" class="hidden">
+<div class="card row"><div><b id="who"></b><div class="mut">Progreso sincronizado</div></div><span class="pill">ONLINE</span></div>
+
+<div class="card">
+<b>¿Cómo estudias?</b>
+<div class="modegrid">
+<button id="freeBtn" class="modebtn active" onclick="setMode('free')">SIN ACADEMIA</button>
+<button id="academyBtn" class="modebtn" onclick="setMode('academy')">CON ACADEMIA</button>
+</div>
+<div id="modeHelp" class="mut" style="margin-top:8px">OpoRumbo decide todo el plan del día.</div>
+</div>
+
+<div class="card">
+<b>Oposición</b><select id="opp" onchange="loadOpp()"></select>
+<div id="academyPanel" class="hidden">
+<div class="mut" style="margin-top:10px">Marca lo que te toca hoy en la academia. Puedes marcar uno o varios temas.</div>
+<div id="topicPicks" class="topics"></div>
+</div>
+<input id="mins" type="number" value="180">
+<button onclick="plan()" style="width:100%">ORGANIZAR MI DÍA</button>
+</div>
+
+<div class="card"><div class="row"><b>HOY</b><span class="pill">XP <span id="xp">0</span></span></div><div id="tasks" class="mut">Genera el plan.</div></div>
+</div></div>
+<script>
+let token=localStorage.getItem('or9'),state={},mode='free',academySelected=[],opposition=null;
+const headers=()=>({'Content-Type':'application/json','Authorization':'Bearer '+token});
+async function authCall(path){let r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email.value,password:pass.value})});let j=await r.json();if(j.token){token=j.token;localStorage.setItem('or9',token);boot()}else msg.textContent=j.detail||'Error'}
+function signup(){authCall('/api/register')}function signin(){authCall('/api/login')}
+function setMode(m){mode=m;freeBtn.classList.toggle('active',m==='free');academyBtn.classList.toggle('active',m==='academy');academyPanel.classList.toggle('hidden',m!=='academy');modeHelp.textContent=m==='free'?'OpoRumbo decide todo el plan del día.':'Marca los temas de academia de hoy y OpoRumbo reorganiza el resto alrededor.'}
+async function boot(){if(!token)return;let r=await fetch('/api/me',{headers:headers()});if(!r.ok){localStorage.removeItem('or9');token=null;return}let u=await r.json();auth.classList.add('hidden');inside.classList.remove('hidden');who.textContent=u.email;
+let os=await fetch('/api/oppositions').then(r=>r.json());opp.innerHTML=os.map(o=>`<option value="${o.id}">${o.name}</option>`).join('');
+state=await fetch('/api/progress',{headers:headers()}).then(r=>r.json());mode=state.mode||'free';academySelected=state.academy_selected||[];setMode(mode);await loadOpp();render()}
+async function loadOpp(){opposition=await fetch('/api/oppositions/'+opp.value).then(r=>r.json());topicPicks.innerHTML=opposition.topics.map((t,i)=>`<div class="topicpick ${academySelected.includes(i)?'sel':''}" onclick="toggleTopic(${i})"><b>Tema ${t.n}</b><div class="mut">${t.name}</div></div>`).join('')}
+function toggleTopic(i){academySelected=academySelected.includes(i)?academySelected.filter(x=>x!==i):[...academySelected,i];loadOpp()}
+async function plan(){if(mode==='academy'&&!academySelected.length){alert('Marca al menos un tema que te toque hoy en la academia.');return}
+state=await fetch('/api/plan/today',{method:'POST',headers:headers(),body:JSON.stringify({opposition_id:opp.value,minutes:+mins.value,mode:mode,academy_topic_indexes:academySelected})}).then(r=>r.json());render()}
+async function toggle(i){let t=state.tasks[i];t.done=!t.done;state.xp=(state.xp||0)+(t.done?t.xp:-t.xp);if(state.xp<0)state.xp=0;
+if(t.done&&(t.kind==='study'||t.kind==='academy')){let k=String(t.topic_index);state.topics[k]=state.topics[k]||{block:0,score:null};state.topics[k].block=Math.max(state.topics[k].block||0,(t.block_index||0)+1)}
+await fetch('/api/progress',{method:'PUT',headers:headers(),body:JSON.stringify({data:state})});render()}
+function render(){xp.textContent=state.xp||0;tasks.innerHTML=(state.tasks||[]).map((t,i)=>`<div class="task"><div class="row"><div><b>${t.title}</b><div class="mut">${t.detail} · ${t.minutes} min</div>${t.fixed?'<div class="fixed">TAREA FIJA DE ACADEMIA</div>':''}</div><button class="${t.done?'sec':''}" onclick="toggle(${i})">${t.done?'✓':'○'}</button></div></div>`).join('')||'<span class="mut">Organiza tu día.</span>'}
+boot();
+</script></body></html>

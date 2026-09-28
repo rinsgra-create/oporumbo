@@ -1,0 +1,192 @@
+[
+  {
+    "id": "cabo_gc",
+    "name": "Ascenso a Cabo — Guardia Civil",
+    "year": "Programa base 17 temas",
+    "source_name": "BOGC — Resolución 24/10/2019, Anexo I",
+    "verified": true,
+    "topics": [
+      {
+        "n": 1,
+        "name": "Estatuto del personal de la Guardia Civil",
+        "blocks": [
+          "Ley 29/2014",
+          "LO 11/2007",
+          "LO 12/2007",
+          "Orden PRE/1983/2012",
+          "Protocolos de acoso"
+        ]
+      },
+      {
+        "n": 2,
+        "name": "Régimen interior",
+        "blocks": [
+          "RD 179/2005",
+          "RD 1438/2010",
+          "RD 470/2019",
+          "OG 5/2005",
+          "Orden INT/2008/2012 y órdenes generales"
+        ]
+      },
+      {
+        "n": 3,
+        "name": "Deontología profesional",
+        "blocks": [
+          "LO 2/1986: Título I",
+          "Principios Básicos ONU",
+          "Recomendación Rec(2001)10",
+          "EBEP: Código de Conducta"
+        ]
+      },
+      {
+        "n": 4,
+        "name": "Derechos Humanos",
+        "blocks": [
+          "DUDH",
+          "PIDCP",
+          "Protocolos Facultativos",
+          "Carta de Derechos Fundamentales UE"
+        ]
+      },
+      {
+        "n": 5,
+        "name": "Derecho administrativo",
+        "blocks": [
+          "Ley 39/2015: Título Preliminar",
+          "Título I",
+          "Título II",
+          "Título III",
+          "Título V",
+          "RD 95/2009",
+          "Ley 40/2015"
+        ]
+      },
+      {
+        "n": 6,
+        "name": "Seguridad ciudadana",
+        "blocks": [
+          "LO 4/2015: bloque 1",
+          "bloque 2",
+          "bloque 3"
+        ]
+      },
+      {
+        "n": 7,
+        "name": "Derecho fiscal",
+        "blocks": [
+          "LO 12/1995",
+          "Reglamento UE 952/2013",
+          "RD 1649/1998"
+        ]
+      },
+      {
+        "n": 8,
+        "name": "Armas, explosivos, pirotecnia y cartuchería",
+        "blocks": [
+          "RD 137/1993",
+          "RD 130/2017",
+          "RD 989/2015"
+        ]
+      },
+      {
+        "n": 9,
+        "name": "Patrimonio Natural y Biodiversidad",
+        "blocks": [
+          "Ley 42/2007: bloque 1",
+          "bloque 2",
+          "bloque 3"
+        ]
+      },
+      {
+        "n": 10,
+        "name": "Violencia de género y menores",
+        "blocks": [
+          "LO 1/2004",
+          "Normativa penal/procesal",
+          "Protocolos VioGén",
+          "Instrucción 4/2019",
+          "NT 1/2019",
+          "Instrucción 1/2017"
+        ]
+      },
+      {
+        "n": 11,
+        "name": "Derecho penal",
+        "blocks": [
+          "Código Penal: bloque I",
+          "bloque II",
+          "bloque III",
+          "bloque IV"
+        ]
+      },
+      {
+        "n": 12,
+        "name": "Poder Judicial",
+        "blocks": [
+          "Tribunal Supremo",
+          "Audiencia Nacional",
+          "TSJ",
+          "Audiencias Provinciales y Juzgados"
+        ]
+      },
+      {
+        "n": 13,
+        "name": "Ley de Enjuiciamiento Criminal",
+        "blocks": [
+          "Denuncia y querella",
+          "Policía Judicial",
+          "Inspección ocular y cuerpo del delito",
+          "Detenido y hábeas corpus",
+          "Medidas de investigación",
+          "Diligencias urgentes",
+          "Procedimiento abreviado"
+        ]
+      },
+      {
+        "n": 14,
+        "name": "Igualdad efectiva",
+        "blocks": [
+          "LO 3/2007: Título Preliminar",
+          "Título I",
+          "Título V"
+        ]
+      },
+      {
+        "n": 15,
+        "name": "Protección Civil",
+        "blocks": [
+          "Ley 17/2015: Título I",
+          "Título II",
+          "Título III",
+          "Título IV",
+          "Título V"
+        ]
+      },
+      {
+        "n": 16,
+        "name": "TIC",
+        "blocks": [
+          "Telecomunicaciones",
+          "Administración digital",
+          "CCN-CERT: navegación y correo",
+          "Móviles y redes",
+          "Mensajería/RRSS/IoT"
+        ]
+      },
+      {
+        "n": 17,
+        "name": "Topografía",
+        "blocks": [
+          "Coordenadas geográficas",
+          "Acimut y rumbo",
+          "Unidades y escalas",
+          "Unidades angulares",
+          "Planimetría y altimetría",
+          "Accidentes del terreno",
+          "Planos acotados",
+          "Pendiente entre dos puntos"
+        ]
+      }
+    ]
+  }
+]
