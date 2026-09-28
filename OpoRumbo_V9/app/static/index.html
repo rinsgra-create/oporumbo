@@ -1,178 +1,329 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#edf6ff">
+<link rel="manifest" href="/manifest.webmanifest">
+<title>OpoRumbo V15</title>
+<style>
+:root{
+  --ink:#102544;--mut:#7388a7;--line:#dce8f3;--blue:#2f7ff4;
+  --green:#24b46c;--red:#e3565e;--orange:#e9a03b;--bg:#eef7ff;
+}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(#e3f2ff,#f8fbff 42%,#eef7ff);color:var(--ink);
+font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+.shell{max-width:560px;margin:auto;min-height:100vh;padding:14px 14px 92px}
+.hidden{display:none!important}.mut{color:var(--mut);font-size:12px}
+.top{display:flex;align-items:center;justify-content:space-between}
+.brand{font-size:25px;font-weight:900}.brand span{color:var(--blue)}
+.avatarBtn{width:38px;height:38px;border:0;border-radius:13px;background:#ffffffbb;font-size:18px}
+.card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:15px;margin-top:12px;
+box-shadow:0 8px 25px #7c9db919}
+h1,h2,h3{margin:0}.btn{width:100%;border:0;border-radius:15px;padding:13px;font-size:15px;font-weight:900;
+background:var(--green);color:#fff;margin-top:10px}.btn.secondary{background:#eaf3fb;color:#315473}
+input,select{width:100%;border:1px solid #d5e3ef;border-radius:12px;padding:11px;background:#fff;font-size:14px;margin-top:7px}
 
-from fastapi import FastAPI,HTTPException,Header
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from pydantic import BaseModel,EmailStr
-from pathlib import Path
-import json
-from .db import init_db,register,login,user_from_token,get_progress,save_progress
-from .planner import make_day,record_test,roadmap
-from .researcher import search_catalog,search_boe,inspect_boe
+/* TODAY */
+.hero{position:relative;height:230px;border-radius:25px;overflow:hidden;margin-top:10px;
+background:linear-gradient(#90d4ff 0 60%,#d9efff 60% 67%,#79b66c 68%)}
+.hero:after{content:"";position:absolute;left:0;right:0;bottom:52px;height:80px;
+background:linear-gradient(155deg,transparent 30%,#799db1 31% 48%,transparent 49%) 10px 15px/210px 90px repeat-x;opacity:.75}
+.petImg{position:absolute;z-index:2;width:145px;height:145px;object-fit:cover;border-radius:30px;
+left:50%;bottom:12px;transform:translateX(-50%);filter:drop-shadow(0 9px 12px #31597942);
+animation:idle 2.7s ease-in-out infinite}
+.petImg.react{animation:react .75s ease}
+@keyframes idle{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-5px)}}
+@keyframes react{30%{transform:translateX(-50%) translateY(-18px) scale(1.08)}60%{transform:translateX(-50%) rotate(4deg) scale(1.04)}}
+.speech{position:absolute;z-index:3;right:13px;top:13px;background:#fff;border-radius:16px;padding:9px 11px;
+max-width:175px;font-weight:800;font-size:12px}
+.petMeta{display:flex;align-items:center;justify-content:space-between;padding-top:10px}
+.petName{font-size:20px;font-weight:900}.xpLine{height:7px;background:#e9f0f7;border-radius:99px;overflow:hidden;width:160px;margin-top:5px}
+.xpFill{height:100%;background:linear-gradient(90deg,#2f7ff4,#58c7ff);transition:.4s}
+.energy{color:#218e59;font-size:12px;font-weight:900}
+.dayHead{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:4px}
+.dayProgress{font-size:12px;color:var(--mut)}
+.progressLine{height:8px;background:#e8eff6;border-radius:99px;overflow:hidden;margin:9px 0 3px}
+.progressLine>div{height:100%;background:var(--green);transition:.4s}
+.task{display:grid;grid-template-columns:40px 1fr 38px;gap:9px;align-items:center;padding:12px 0;
+border-bottom:1px solid var(--line);position:relative}
+.task:last-child{border:0}.ico{width:38px;height:38px;border-radius:12px;background:#eff6fd;display:grid;place-items:center}
+.task b{font-size:14px}.task small{display:block;color:var(--mut);margin-top:3px;line-height:1.25}
+.tag{display:inline-block;border-radius:99px;padding:3px 7px;font-size:10px;margin-top:5px}
+.tag.red{background:#ffe7e8;color:#b92e39}.tag.green{background:#e3f7eb;color:#157849}.tag.blue{background:#e7f1ff;color:#2369bd}
+.check{width:35px;height:35px;border-radius:50%;border:2px solid #b9cadb;background:white;color:white;font-size:18px}
+.check.done{border-color:var(--green);background:var(--green)}
 
-BASE=Path(__file__).resolve().parent
-CATALOG=json.loads((BASE/"catalog.json").read_text(encoding="utf-8"))
-app=FastAPI(title="OpoRumbo V14",version="14.0")
-init_db()
+/* secondary screens */
+.screenTitle{margin-top:10px;font-size:24px}
+.stats2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat{padding:13px;border-radius:16px;background:#f3f8fd}.stat b{font-size:22px;display:block}.stat span{font-size:11px;color:var(--mut)}
+.topic{padding:10px 0;border-bottom:1px solid var(--line)}.topic:last-child{border:0}
+.topicTop{display:flex;justify-content:space-between;gap:8px}.topic b{font-size:13px}
+.smallbar{height:6px;background:#e7eef6;border-radius:99px;overflow:hidden;margin-top:6px}.smallbar>div{height:100%;background:var(--blue)}
+.companions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.companion{border:2px solid #e2edf6;border-radius:18px;padding:8px;text-align:center}
+.companion.selected{border-color:var(--blue);background:#edf6ff}.companion img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:14px}.companion b{display:block;font-size:13px}
+.evolution{display:flex;justify-content:space-between;gap:5px;align-items:center;margin-top:12px}.ev{text-align:center;flex:1}.evBubble{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;margin:auto;background:#eaf3fb;font-size:23px}.ev.active .evBubble{background:#daf6e7;box-shadow:0 0 0 3px #73d5a4}.ev small{font-size:9px;color:var(--mut)}
+.settingsGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.toggle{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line)}
+.switch{width:47px;height:27px;border-radius:99px;background:#c9d7e4;position:relative}.switch:after{content:"";position:absolute;width:21px;height:21px;left:3px;top:3px;border-radius:50%;background:#fff;transition:.2s}.switch.on{background:var(--green)}.switch.on:after{left:23px}
 
-class AuthReq(BaseModel):
-    email:EmailStr
-    password:str
-class SaveReq(BaseModel):
-    data:dict
-class ResearchSelectReq(BaseModel):
-    kind:str
-    catalog_id:str|None=None
-    boe_id:str|None=None
-class SetupReq(BaseModel):
-    opposition:dict
-    exam_date:str
-    days_per_week:int=6
-    minutes_per_day:int=180
-    target_rounds:int=3
-    target_score:int=80
-    mode:str="free"
-class PlanReq(BaseModel):
-    opposition_id:str
-    minutes:int=180
-    mode:str="free"
-    academy_topic_indexes:list[int]=[]
-    exam_date:str="2027-03-15"
-    days_per_week:int=6
-    target_rounds:int=3
-class TestResultReq(BaseModel):
-    opposition_id:str
-    topic_index:int
-    block_index:int=0
-    score:int
+/* bottom nav */
+.nav{position:fixed;z-index:30;left:50%;bottom:0;transform:translateX(-50%);width:min(560px,100%);
+height:78px;background:#fffffff5;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);
+padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -5px 20px #6d8aa418}
+.navBtn{border:0;background:transparent;color:#607793;font-size:10px;padding:7px 2px}
+.navBtn span{display:block;font-size:22px;margin-bottom:2px}.navBtn.active{color:var(--blue);font-weight:900}
 
-def require_user(a):
-    if not a or not a.lower().startswith("bearer "):raise HTTPException(401,"Falta sesión")
-    u=user_from_token(a.split(" ",1)[1])
-    if not u:raise HTTPException(401,"Sesión no válida")
-    return u
+/* overlays */
+.overlay{position:fixed;inset:0;background:#09243aaa;z-index:60;display:none;align-items:center;justify-content:center;padding:20px}
+.overlay.show{display:flex}.modal{width:min(360px,100%);border-radius:25px;background:#fff;padding:20px;text-align:center}
+.score{font-size:40px;font-weight:900;color:var(--blue);margin:7px}.resultHint{text-align:left;padding:10px;border-radius:13px;background:#f2f7fc;margin-top:10px}
+.rewardPet{width:125px;height:125px;object-fit:cover;border-radius:25px;animation:reward .7s ease}
+@keyframes reward{35%{transform:translateY(-13px) scale(1.08)}}
+.energyOrb{position:fixed;width:18px;height:18px;border-radius:50%;background:radial-gradient(circle,#fff 0 20%,#85efff 22%,#48baf9 56%,#2b7ef5 100%);box-shadow:0 0 18px #4ac0ff;z-index:80;pointer-events:none}
 
-def get_opp_for_progress(p, oid):
-    if oid=="custom_researched":
-        return p.get("custom_opposition")
-    return next((o for o in CATALOG if o["id"]==oid),None)
+/* auth */
+.row{display:flex;gap:8px}.row>*{flex:1}
+</style>
+</head>
+<body>
+<div class="shell">
+<div class="top"><div class="brand">Opo<span>Rumbo</span></div><button class="avatarBtn" id="quickProfile">☰</button></div>
 
-@app.get("/api/health")
-def health():return {"ok":True,"version":"14.0"}
+<div id="authCard" class="card">
+<h2>Entrar</h2><input id="email" type="email" placeholder="Email"><input id="pass" type="password" placeholder="Contraseña">
+<div class="row"><button id="signup" class="btn">Crear cuenta</button><button id="signin" class="btn secondary">Entrar</button></div><div id="authMsg" class="mut"></div>
+</div>
 
-@app.post("/api/register")
-def api_register(x:AuthReq):
-    if len(x.password)<8:raise HTTPException(400,"Usa al menos 8 caracteres")
-    token=register(x.email,x.password)
-    if not token:raise HTTPException(409,"Ese correo ya está registrado")
-    return {"token":token}
+<div id="app" class="hidden">
+<!-- HOY -->
+<section id="screenToday">
+  <div class="hero">
+    <div id="speech" class="speech">Hoy también sumamos 💙</div>
+    <img id="petHero" class="petImg" src="/static/assets/auri.png" alt="Compañero">
+  </div>
+  <div class="petMeta">
+    <div><div class="petName"><span id="petName">Auri</span> <span id="level" class="mut">Nv. 1</span></div>
+      <div class="xpLine"><div id="xpFill" class="xpFill"></div></div></div>
+    <div class="energy">⚡ <span id="energy">100%</span></div>
+  </div>
 
-@app.post("/api/login")
-def api_login(x:AuthReq):
-    token=login(x.email,x.password)
-    if not token:raise HTTPException(401,"Credenciales incorrectas")
-    return {"token":token}
+  <div class="card">
+    <div class="dayHead"><div><h2>Hoy</h2><div id="dayMeta" class="mut"></div></div><div id="date" class="dayProgress"></div></div>
+    <div class="progressLine"><div id="dayFill" style="width:0"></div></div>
+    <div id="tasks"></div>
+    <button id="regen" class="btn">Organizar mi día</button>
+  </div>
+</section>
 
-@app.get("/api/me")
-def me(authorization:str|None=Header(None)):return require_user(authorization)
+<!-- PROGRESO -->
+<section id="screenProgress" class="hidden">
+ <h1 class="screenTitle">Progreso</h1>
+ <div class="stats2">
+   <div class="stat"><b id="mastery">—</b><span>Índice de dominio</span></div>
+   <div class="stat"><b id="avg">—</b><span>Media de tests</span></div>
+   <div class="stat"><b id="target">80%</b><span>Objetivo</span></div>
+   <div class="stat"><b id="daysLeft">—</b><span>Días al examen</span></div>
+ </div>
+ <div class="card"><h2>Plan de vueltas</h2><div class="topic"><div class="topicTop"><b>Primera vuelta</b><span id="firstPct" class="mut">—</span></div><div class="smallbar"><div id="firstBar"></div></div></div><div class="topic"><div class="topicTop"><b>Ritmo necesario</b><span id="dailyNeed" class="mut">—</span></div></div><div class="topic"><div class="topicTop"><b>Repasos pendientes</b><span id="dueReviews" class="mut">—</span></div></div></div>
+</section>
 
-@app.get("/api/progress")
-def progress(authorization:str|None=Header(None)):
-    u=require_user(authorization);return get_progress(u["id"])
+<!-- TEMARIO -->
+<section id="screenSyllabus" class="hidden">
+ <h1 class="screenTitle">Temario</h1>
+ <div class="card"><div id="topicList"></div></div>
+</section>
 
-@app.put("/api/progress")
-def save(x:SaveReq,authorization:str|None=Header(None)):
-    u=require_user(authorization);save_progress(u["id"],x.data);return {"ok":True}
+<!-- CONSIGUE -->
+<section id="screenCompanion" class="hidden">
+ <h1 class="screenTitle">Tu compañero</h1>
+ <div class="card">
+  <div class="companions">
+   <div class="companion" data-pet="auri"><img src="/static/assets/auri.png"><b>Auri</b><span class="mut">Motivación</span></div>
+   <div class="companion" data-pet="nexo"><img src="/static/assets/nexo.png"><b>Nexo</b><span class="mut">Constancia</span></div>
+   <div class="companion" data-pet="bruma"><img src="/static/assets/bruma.png"><b>Bruma</b><span class="mut">Calma</span></div>
+  </div>
+ </div>
+ <div class="card"><h2>Evolución</h2><div class="evolution">
+  <div class="ev" data-stage="1"><div class="evBubble">🥚</div><small>Inicio</small></div>
+  <div class="ev" data-stage="2"><div class="evBubble">✨</div><small>Primeros pasos</small></div>
+  <div class="ev" data-stage="3"><div class="evBubble">🌟</div><small>1ª vuelta</small></div>
+  <div class="ev" data-stage="4"><div class="evBubble">💫</div><small>2ª vuelta</small></div>
+  <div class="ev" data-stage="5"><div class="evBubble">🏆</div><small>Final</small></div>
+ </div></div>
+</section>
 
-@app.get("/api/oppositions")
-def oppositions():
-    return [{"id":o["id"],"name":o["name"],"year":o.get("year",""),"topics":len(o.get("topics",[]))} for o in CATALOG]
+<!-- PERFIL -->
+<section id="screenProfile" class="hidden">
+ <h1 class="screenTitle">Perfil y ajustes</h1>
+ <div class="card">
+   <div class="mut">Objetivo de acierto (%)</div><input id="targetInput" type="number" min="50" max="100" value="80">
+   <div class="settingsGrid">
+    <div><div class="mut" style="margin-top:8px">Fecha examen</div><input id="exam" type="date"></div>
+    <div><div class="mut" style="margin-top:8px">Minutos/día</div><input id="minutes" type="number" min="30"></div>
+    <div><div class="mut" style="margin-top:8px">Días/semana</div><input id="daysWeek" type="number" min="1" max="7"></div>
+    <div><div class="mut" style="margin-top:8px">Vueltas</div><input id="rounds" type="number" min="1" max="5"></div>
+   </div>
+   <select id="studyMode"><option value="free">Sin academia</option><option value="academy">Con academia</option></select>
+   <button id="saveSettings" class="btn">Guardar</button>
+ </div>
+ <div id="academyCard" class="card hidden"><h2>Academia: ¿qué toca hoy?</h2><div class="mut">Marca uno o varios temas. Serán la prioridad fija del día.</div><div id="academyTopics"></div></div>
+ <div class="card">
+   <div class="toggle"><div><b>Sonido</b><div class="mut">Al completar tareas</div></div><div id="soundSwitch" class="switch on"></div></div>
+   <div class="toggle"><div><b>Animaciones</b><div class="mut">Energía hacia la mascota</div></div><div id="animSwitch" class="switch on"></div></div>
+ </div>
+</section>
+</div>
+</div>
 
-@app.get("/api/oppositions/{oid}")
-def get_opposition(oid:str,authorization:str|None=Header(None)):
-    if oid=="custom_researched":
-        u=require_user(authorization);p=get_progress(u["id"]);o=p.get("custom_opposition")
-        if not o:raise HTTPException(404,"No hay oposición investigada guardada")
-        return o
-    o=next((o for o in CATALOG if o["id"]==oid),None)
-    if not o:raise HTTPException(404,"Oposición no encontrada")
-    return o
+<nav id="nav" class="nav hidden">
+<button class="navBtn active" data-screen="Today"><span>⌂</span>Hoy</button>
+<button class="navBtn" data-screen="Progress"><span>▥</span>Progreso</button>
+<button class="navBtn" data-screen="Syllabus"><span>▤</span>Temario</button>
+<button class="navBtn" data-screen="Companion"><span>♡</span>Consigue</button>
+<button class="navBtn" data-screen="Profile"><span>○</span>Perfil</button>
+</nav>
 
-@app.get("/api/research/opposition")
-async def research_opposition(q:str,authorization:str|None=Header(None)):
-    require_user(authorization)
-    q=q.strip()
-    if len(q)<3:raise HTTPException(400,"Escribe al menos 3 caracteres")
-    return {"query":q,"catalog":search_catalog(CATALOG,q),"boe":await search_boe(q)}
+<div id="scoreOverlay" class="overlay"><div class="modal">
+<h2>Resultado del test</h2><div class="mut">La nota decide cuándo volverá este bloque.</div>
+<div id="scoreNumber" class="score">80%</div><input id="scoreRange" type="range" min="0" max="100" value="80">
+<div id="scoreHint" class="resultHint"></div><button id="saveScore" class="btn">Guardar nota</button><button id="cancelScore" class="btn secondary">Cancelar</button>
+</div></div>
 
-@app.post("/api/research/select")
-async def research_select(x:ResearchSelectReq,authorization:str|None=Header(None)):
-    require_user(authorization)
-    if x.kind=="catalog" and x.catalog_id:
-        o=next((o for o in CATALOG if o["id"]==x.catalog_id),None)
-        if not o:raise HTTPException(404,"Oposición no encontrada")
-        return {"opposition":o,"status":"verified_catalog"}
-    if x.kind=="boe" and x.boe_id:
-        try:o=await inspect_boe(x.boe_id)
-        except Exception:raise HTTPException(502,"No se pudo leer el documento BOE")
-        return {"opposition":o,"status":"automatic_extraction"}
-    raise HTTPException(400,"Selección no válida")
+<div id="rewardOverlay" class="overlay"><div class="modal">
+<img id="rewardPet" class="rewardPet" src="/static/assets/auri.png"><h2>¡Conseguido!</h2>
+<div class="mut">Otro paso más. Tu compañero recibe energía.</div><div style="font-size:18px;font-weight:900;margin:10px">⭐ +<span id="gainXP">0</span> XP</div><button id="closeReward" class="btn">Seguir</button>
+</div></div>
 
-@app.post("/api/setup")
-def setup(x:SetupReq,authorization:str|None=Header(None)):
-    u=require_user(authorization);p=get_progress(u["id"]);o=x.opposition
-    if not o.get("topics"):raise HTTPException(400,"No se ha detectado un temario utilizable")
-    if o.get("id"):
-        p["selected"]=o["id"];p.pop("custom_opposition",None)
-    else:
-        o["id"]="custom_researched";p["selected"]="custom_researched";p["custom_opposition"]=o
-    p["setup_complete"]=True;p["mode"]=x.mode;p["academy_selected"]=[]
-    p["settings"]={
-        "exam_date":x.exam_date,
-        "days_per_week":x.days_per_week,
-        "target_rounds":x.target_rounds,
-        "minutes_today":x.minutes_per_day,
-        "minutes_default":x.minutes_per_day,
-        "target_score":max(50,min(100,x.target_score))
-    }
-    p["topics"]={};p["tasks"]=[]
-    save_progress(u["id"],p);return p
+<script>
+let token=localStorage.getItem('or15')||localStorage.getItem('or14')||localStorage.getItem('or13')||localStorage.getItem('or12')||localStorage.getItem('or11')||localStorage.getItem('or9');
+let state={},opposition=null,pendingTest=null,academySelected=[];
+const $=id=>document.getElementById(id),H=()=>({'Content-Type':'application/json','Authorization':'Bearer '+token});
+const petFiles={auri:'/static/assets/auri.png',nexo:'/static/assets/nexo.png',bruma:'/static/assets/bruma.png'};
+const petNames={auri:'Auri',nexo:'Nexo',bruma:'Bruma'};
 
-@app.post("/api/test/result")
-def test_result(x:TestResultReq,authorization:str|None=Header(None)):
-    u=require_user(authorization);p=get_progress(u["id"])
-    opp=get_opp_for_progress(p,x.opposition_id)
-    if not opp:raise HTTPException(404,"Oposición no encontrada")
-    if not 0<=x.topic_index<len(opp["topics"]):raise HTTPException(400,"Tema no válido")
-    target=int((p.get("settings") or {}).get("target_score",80))
-    rec=record_test(p,x.topic_index,x.block_index,x.score,target)
-    s=p.get("settings") or {}
-    p["roadmap"]=roadmap(opp,p,s.get("exam_date","2027-03-15"),s.get("days_per_week",6),s.get("target_rounds",3))
-    save_progress(u["id"],p)
-    return {"result":rec,"progress":p}
+function ensureState(){
+ state.pet=state.pet||{type:'auri',name:'Auri',energy:100,totalCompleted:0};
+ if(state.pet.type==='lumi'){state.pet.type='auri';state.pet.name='Auri'}
+ state.prefs=state.prefs||{sound:true,animations:true};
+ state.settings=state.settings||{};
+ academySelected=state.academy_selected||[];
+}
+function petStage(){
+ const done=Object.values(state.topics||{}).reduce((a,x)=>a+(x.block||0),0);
+ return done>=45?5:done>=28?4:done>=14?3:done>=4?2:1;
+}
+async function auth(path){
+ const email=$('email').value.trim(),password=$('pass').value;
+ if(!email||password.length<8){$('authMsg').textContent='Email válido y contraseña de 8 caracteres mínimo.';return}
+ let r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})}),j=await r.json();
+ if(!r.ok){$('authMsg').textContent=j.detail||'Error';return}
+ token=j.token;localStorage.setItem('or15',token);boot()
+}
+async function boot(){
+ if(!token)return;let r=await fetch('/api/me',{headers:H()});if(!r.ok)return;
+ $('authCard').classList.add('hidden');$('app').classList.remove('hidden');$('nav').classList.remove('hidden');
+ state=await fetch('/api/progress',{headers:H()}).then(r=>r.json());ensureState();
+ if(!state.setup_complete){$('speech').textContent='Configura tu oposición desde Perfil para empezar 💙'}
+ await loadOpp();fillSettings();renderAll();
+}
+async function loadOpp(){
+ try{
+  opposition=await fetch('/api/oppositions/'+state.selected,{headers:H()}).then(r=>r.json());
+ }catch(e){opposition=null}
+ renderSyllabus();renderAcademy();
+}
+async function persist(){await fetch('/api/progress',{method:'PUT',headers:H(),body:JSON.stringify({data:state})})}
 
-@app.post("/api/plan/today")
-def today(x:PlanReq,authorization:str|None=Header(None)):
-    u=require_user(authorization);p=get_progress(u["id"])
-    opp=get_opp_for_progress(p,x.opposition_id)
-    if not opp:raise HTTPException(404,"Oposición no encontrada")
-    p["selected"]=x.opposition_id;p["mode"]=x.mode;p["academy_selected"]=x.academy_topic_indexes
-    old=p.get("settings") or {}
-    p["settings"]={
-        "exam_date":x.exam_date,
-        "days_per_week":x.days_per_week,
-        "target_rounds":x.target_rounds,
-        "minutes_today":x.minutes,
-        "minutes_default":x.minutes,
-        "target_score":old.get("target_score",80)
-    }
-    result=make_day(opp,x.minutes,p,x.mode,x.academy_topic_indexes,x.exam_date,x.days_per_week,x.target_rounds)
-    p["tasks"]=result["tasks"];p["roadmap"]=result["roadmap"];p["due_reviews"]=result["due_reviews"]
-    save_progress(u["id"],p);return p
-
-app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
-@app.get("/")
-def index():return FileResponse(BASE/"static"/"index.html")
-@app.get("/manifest.webmanifest")
-def manifest():return FileResponse(BASE/"static"/"manifest.webmanifest",media_type="application/manifest+json")
-@app.get("/sw.js")
-def sw():return FileResponse(BASE/"static"/"sw.js",media_type="application/javascript")
+function sound(){
+ if(state.prefs?.sound===false)return;
+ try{const A=window.AudioContext||window.webkitAudioContext,c=new A(),n=c.currentTime;[523,659,784].forEach((f,i)=>{let o=c.createOscillator(),g=c.createGain();o.frequency.value=f;o.connect(g);g.connect(c.destination);g.gain.setValueAtTime(0,n+i*.05);g.gain.linearRampToValueAtTime(.1,n+i*.05+.01);g.gain.exponentialRampToValueAtTime(.001,n+i*.05+.18);o.start(n+i*.05);o.stop(n+i*.05+.2)})}catch(e){}
+}
+function fly(btn){
+ if(state.prefs?.animations===false)return Promise.resolve();
+ return new Promise(res=>{
+  const a=btn.getBoundingClientRect(),b=$('petHero').getBoundingClientRect(),o=document.createElement('div');o.className='energyOrb';document.body.appendChild(o);
+  const sx=a.left+a.width/2-9,sy=a.top+a.height/2-9,tx=b.left+b.width/2-9,ty=b.top+b.height/2-9,s=performance.now();
+  function f(t){const p=Math.min(1,(t-s)/650),e=1-Math.pow(1-p,3);o.style.left=(sx+(tx-sx)*e)+'px';o.style.top=(sy+(ty-sy)*e-Math.sin(p*Math.PI)*70)+'px';if(p<1)requestAnimationFrame(f);else{o.remove();$('petHero').classList.add('react');setTimeout(()=>{$('petHero').classList.remove('react');res()},760)}}
+  requestAnimationFrame(f)
+ })
+}
+function meaning(v,target){
+ if(v<50)return ['🔴 Muy débil','Volverá mañana'];
+ if(v<65)return ['🔴 Débil','Repaso en unos 2 días'];
+ if(v<target)return ['🟠 Debajo del objetivo','Volverá en pocos días'];
+ if(v<90)return ['🟡 Objetivo alcanzado','Mantenimiento en ~1 semana'];
+ if(v<95)return ['🟢 Dominado','Mantenimiento espaciado'];
+ return ['💎 Muy dominado','Mantenimiento lejano'];
+}
+async function clickTask(i,btn){
+ const t=state.tasks[i];
+ if(t.kind==='test'&&!t.done){pendingTest={i,t,btn};$('scoreRange').value=state.settings.target_score||80;updateScore();$('scoreOverlay').classList.add('show');return}
+ if(t.done){t.done=false;state.xp=Math.max(0,(state.xp||0)-t.xp);await persist();renderAll();return}
+ sound();await fly(btn);t.done=true;state.xp=(state.xp||0)+t.xp;state.pet.energy=Math.min(100,(state.pet.energy||0)+6);state.pet.totalCompleted=(state.pet.totalCompleted||0)+1;
+ if(t.kind==='study'||t.kind==='academy'){let k=String(t.topic_index);state.topics=state.topics||{};state.topics[k]=state.topics[k]||{block:0,score:null,tests:[],reviews:{}};state.topics[k].block=Math.max(state.topics[k].block||0,(t.block_index||0)+1)}
+ await persist();$('gainXP').textContent=t.xp;$('rewardPet').src=petFiles[state.pet.type];$('rewardOverlay').classList.add('show');renderAll()
+}
+function updateScore(){
+ let v=+$('scoreRange').value,target=state.settings.target_score||80,m=meaning(v,target);$('scoreNumber').textContent=v+'%';$('scoreHint').innerHTML=`<b>${m[0]}</b><br><span class="mut">${m[1]}</span>`
+}
+async function saveScore(){
+ if(!pendingTest)return;let score=+$('scoreRange').value,t=pendingTest.t;
+ sound();await fly(pendingTest.btn);
+ let r=await fetch('/api/test/result',{method:'POST',headers:H(),body:JSON.stringify({opposition_id:state.selected,topic_index:t.topic_index,block_index:t.block_index||0,score})}),j=await r.json();
+ if(!r.ok){alert(j.detail||'Error');return}
+ state=j.progress;ensureState();state.tasks[pendingTest.i].done=true;state.xp=(state.xp||0)+(state.tasks[pendingTest.i].xp||0);state.pet.energy=Math.min(100,(state.pet.energy||0)+6);await persist();
+ $('scoreOverlay').classList.remove('show');$('gainXP').textContent=state.tasks[pendingTest.i].xp||0;$('rewardPet').src=petFiles[state.pet.type];$('rewardOverlay').classList.add('show');pendingTest=null;renderAll()
+}
+async function regenerate(){
+ let s=state.settings||{},p={opposition_id:state.selected,minutes:s.minutes_default||s.minutes_today||180,mode:state.mode||'free',academy_topic_indexes:academySelected,exam_date:s.exam_date||'2027-03-15',days_per_week:s.days_per_week||6,target_rounds:s.target_rounds||3};
+ if(p.mode==='academy'&&!academySelected.length){alert('Ve a Perfil y marca qué temas te toca hoy en la academia.');return}
+ state=await fetch('/api/plan/today',{method:'POST',headers:H(),body:JSON.stringify(p)}).then(r=>r.json());ensureState();renderAll()
+}
+function renderToday(){
+ let xp=state.xp||0,lvl=Math.floor(xp/300)+1,within=xp%300;
+ $('petHero').src=petFiles[state.pet.type]||petFiles.auri;$('petName').textContent=state.pet.name||petNames[state.pet.type];$('level').textContent='Nv. '+lvl;$('xpFill').style.width=(within/300*100)+'%';$('energy').textContent=Math.round(state.pet.energy||0)+'%';
+ $('speech').textContent=(state.pet.energy||100)<40?'Te estaba esperando. Hagamos una juntos 💙':'Hoy también sumamos 💙';
+ $('date').textContent=new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'short'});
+ let tasks=state.tasks||[],done=tasks.filter(x=>x.done).length,total=tasks.length,min=tasks.reduce((a,x)=>a+(x.minutes||0),0);
+ $('dayMeta').textContent=`${total} tareas · ${min} min · ${done}/${total} hechas`;$('dayFill').style.width=(total?done/total*100:0)+'%';
+ $('tasks').innerHTML=tasks.map((t,i)=>{let tag='';if(t.kind==='urgent_review')tag=`<span class="tag red">Prioridad · ${t.last_score??'—'}%</span>`;else if(t.kind==='maintenance')tag=`<span class="tag green">Mantenimiento · ${t.last_score??'—'}%</span>`;else if(t.kind==='test')tag=`<span class="tag blue">Objetivo ${state.settings.target_score||80}%</span>`;
+ let icon=t.kind==='test'?'✓':t.kind==='urgent_review'?'!':t.kind==='maintenance'?'↻':t.kind==='english'?'EN':t.kind==='psy'?'◇':'▤';
+ return `<div class="task"><div class="ico">${icon}</div><div><b>${t.title}</b><small>${t.detail} · ${t.minutes} min</small>${tag}</div><button class="check ${t.done?'done':''}" data-task="${i}">${t.done?'✓':''}</button></div>`}).join('')||'<div class="mut" style="padding:12px 0">Pulsa “Organizar mi día”.</div>';
+ document.querySelectorAll('[data-task]').forEach(x=>x.onclick=()=>clickTask(+x.dataset.task,x))
+}
+function renderProgress(){
+ let r=state.roadmap||{};$('mastery').textContent=r.mastery_index!=null?r.mastery_index+'%':'—';$('avg').textContent=r.average_test_score!=null?r.average_test_score+'%':'—';$('target').textContent=(state.settings.target_score||80)+'%';$('daysLeft').textContent=r.days_left??'—';$('firstPct').textContent=(r.first_round_pct??0)+'%';$('firstBar').style.width=(r.first_round_pct??0)+'%';$('dailyNeed').textContent=(r.required_minutes_per_study_day??'—')+' min/día';$('dueReviews').textContent=(state.due_reviews??0)
+}
+function renderSyllabus(){
+ if(!opposition){$('topicList').innerHTML='<div class="mut">Configura una oposición.</div>';return}
+ $('topicList').innerHTML=opposition.topics.map((t,i)=>{let s=(state.topics||{})[String(i)]||{},blocks=t.blocks||[],done=Math.min(s.block||0,blocks.length),pct=blocks.length?Math.round(done/blocks.length*100):0;return `<div class="topic"><div class="topicTop"><b>Tema ${t.n||i+1} · ${t.name}</b><span class="mut">${s.score!=null?s.score+'%':'Sin test'}</span></div><div class="smallbar"><div style="width:${pct}%"></div></div><div class="mut">${done}/${blocks.length} bloques</div></div>`}).join('')
+}
+function renderCompanion(){
+ document.querySelectorAll('.companion').forEach(x=>x.classList.toggle('selected',x.dataset.pet===state.pet.type));let st=petStage();document.querySelectorAll('.ev').forEach(x=>x.classList.toggle('active',+x.dataset.stage===st))
+}
+function renderAcademy(){
+ if(!opposition)return;$('academyTopics').innerHTML=opposition.topics.map((t,i)=>`<div class="topic" data-ac="${i}" style="cursor:pointer;background:${academySelected.includes(i)?'#edf6ff':'transparent'}"><b>${academySelected.includes(i)?'✓ ':''}Tema ${t.n||i+1} · ${t.name}</b></div>`).join('');
+ document.querySelectorAll('[data-ac]').forEach(x=>x.onclick=()=>{let i=+x.dataset.ac;academySelected=academySelected.includes(i)?academySelected.filter(v=>v!==i):[...academySelected,i];state.academy_selected=academySelected;renderAcademy()})
+}
+function fillSettings(){
+ let s=state.settings||{};$('targetInput').value=s.target_score||80;$('exam').value=s.exam_date||'2027-03-15';$('minutes').value=s.minutes_default||s.minutes_today||180;$('daysWeek').value=s.days_per_week||6;$('rounds').value=s.target_rounds||3;$('studyMode').value=state.mode||'free';$('academyCard').classList.toggle('hidden',$('studyMode').value!=='academy');syncSwitches()
+}
+function syncSwitches(){$('soundSwitch').classList.toggle('on',state.prefs.sound!==false);$('animSwitch').classList.toggle('on',state.prefs.animations!==false)}
+async function saveSettings(){
+ state.settings=state.settings||{};state.settings.target_score=Math.max(50,Math.min(100,+$('targetInput').value||80));state.settings.exam_date=$('exam').value;state.settings.minutes_default=+$('minutes').value||180;state.settings.minutes_today=state.settings.minutes_default;state.settings.days_per_week=+$('daysWeek').value||6;state.settings.target_rounds=+$('rounds').value||3;state.mode=$('studyMode').value;state.academy_selected=academySelected;await persist();$('academyCard').classList.toggle('hidden',state.mode!=='academy');await regenerate()
+}
+function renderAll(){ensureState();renderToday();renderProgress();renderSyllabus();renderCompanion();renderAcademy();fillSettings()}
+function showScreen(name){['Today','Progress','Syllabus','Companion','Profile'].forEach(n=>$('screen'+n).classList.toggle('hidden',n!==name));document.querySelectorAll('.navBtn').forEach(b=>b.classList.toggle('active',b.dataset.screen===name))}
+document.querySelectorAll('.navBtn').forEach(b=>b.onclick=()=>showScreen(b.dataset.screen));
+document.querySelectorAll('.companion').forEach(c=>c.onclick=async()=>{state.pet.type=c.dataset.pet;state.pet.name=petNames[c.dataset.pet];await persist();renderAll()});
+$('quickProfile').onclick=()=>showScreen('Profile');$('regen').onclick=regenerate;$('scoreRange').oninput=updateScore;$('saveScore').onclick=saveScore;$('cancelScore').onclick=()=>{$('scoreOverlay').classList.remove('show');pendingTest=null};$('closeReward').onclick=()=>$('rewardOverlay').classList.remove('show');
+$('studyMode').onchange=()=>{$('academyCard').classList.toggle('hidden',$('studyMode').value!=='academy')};$('saveSettings').onclick=saveSettings;
+$('soundSwitch').onclick=async()=>{state.prefs.sound=!state.prefs.sound;syncSwitches();await persist()};$('animSwitch').onclick=async()=>{state.prefs.animations=!state.prefs.animations;syncSwitches();await persist()};
+$('signup').onclick=()=>auth('/api/register');$('signin').onclick=()=>auth('/api/login');
+boot();
+</script>
+</body>
+</html>
