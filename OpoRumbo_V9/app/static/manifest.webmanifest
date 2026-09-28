@@ -1,0 +1,9 @@
+{
+  "name": "OpoRumbo",
+  "short_name": "OpoRumbo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#eef7ff",
+  "theme_color": "#2f8df7",
+  "description": "Tu compañero de oposición"
+}
