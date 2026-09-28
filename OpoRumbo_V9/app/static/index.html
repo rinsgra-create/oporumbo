@@ -1,128 +1,178 @@
-<!doctype html>
-<html lang="es"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#2f8df7"><link rel="manifest" href="/manifest.webmanifest">
-<title>OpoRumbo V13</title>
-<style>
-:root{--ink:#102544;--mut:#7388a7;--line:#dbe8f4;--blue:#2f8df7;--green:#29b36c;--amber:#f2a93b}
-*{box-sizing:border-box}body{margin:0;background:linear-gradient(#dff1ff,#f7fbff 40%,#eef7ff);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,sans-serif}
-.w{max-width:570px;margin:auto;min-height:100vh;padding:14px 14px 100px}.top{display:flex;justify-content:space-between;align-items:center}.brand{font-size:25px;font-weight:900}.brand span{color:var(--blue)}
-.card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:15px;margin-top:12px;box-shadow:0 9px 28px #799bbf1b}.mut{font-size:12px;color:var(--mut)}.hidden{display:none!important}
-input,select{width:100%;padding:12px;border:1px solid #d5e3ef;border-radius:13px;background:white;font-size:15px;margin-top:8px}
-.btn{width:100%;border:0;border-radius:15px;background:var(--green);color:#fff;padding:13px;font-weight:900;font-size:15px;margin-top:10px}.secondary{background:#eaf3fb;color:#315473}.blue{background:var(--blue)}
-.row{display:flex;gap:8px}.row>*{flex:1}.badge{font-size:10px;padding:5px 8px;border-radius:99px;font-weight:900}.verified{background:#e1f7ea;color:#16814d}.detected{background:#fff1d8;color:#a66b0e}
-.result{border:1px solid var(--line);border-radius:15px;padding:11px;margin-top:8px;cursor:pointer}.result:hover{border-color:#72baf5}.result b{font-size:14px}
-.loading{text-align:center;padding:18px;color:var(--mut)}.spinner{width:28px;height:28px;border:3px solid #dcebf7;border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 8px}@keyframes spin{to{transform:rotate(360deg)}}
-.step{display:flex;gap:6px;margin:12px 0}.dot{height:6px;flex:1;border-radius:99px;background:#dce8f3}.dot.on{background:var(--blue)}
-.topicList{max-height:260px;overflow:auto;background:#f7fbff;border-radius:14px;padding:8px;margin-top:9px}.topic{padding:8px;border-bottom:1px solid #e1ebf4;font-size:12px}.topic:last-child{border:0}
-.warn{background:#fff7e8;color:#906218;padding:10px;border-radius:13px;font-size:12px;margin-top:9px}
-.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.mini{background:#f3f8fd;border-radius:13px;text-align:center;padding:9px}.mini b{font-size:17px;display:block}.mini span{font-size:10px;color:var(--mut)}
-.mascot{height:190px;border-radius:22px;background:linear-gradient(#94d7ff,#daf3ff 67%,#8bc67d 68%);position:relative;overflow:hidden}.pet{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);font-size:92px}.bubble{position:absolute;right:13px;top:12px;background:#fff;padding:8px 10px;border-radius:14px;font-size:12px;font-weight:800}
-.task{display:grid;grid-template-columns:38px 1fr 36px;gap:9px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}.ico{width:36px;height:36px;border-radius:11px;background:#eff6fd;display:grid;place-items:center}.task b{font-size:14px}.task small{display:block;color:var(--mut);margin-top:3px}.check{width:34px;height:34px;border-radius:50%;border:2px solid #b7cadc;background:white;color:white}.check.done{background:var(--green);border-color:var(--green)}
-h1{margin:8px 0;font-size:27px}h2{margin:0;font-size:19px}
-</style></head>
-<body><div class="w">
-<div class="top"><div class="brand">Opo<span>Rumbo</span></div><div class="mut">V13</div></div>
 
-<div id="auth" class="card">
-<h2>Entrar</h2><input id="email" type="email" placeholder="Email"><input id="pass" type="password" placeholder="Contraseña">
-<div class="row"><button id="signup" class="btn">Crear cuenta</button><button id="signin" class="btn secondary">Entrar</button></div><div id="msg" class="mut"></div>
-</div>
+from fastapi import FastAPI,HTTPException,Header
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pydantic import BaseModel,EmailStr
+from pathlib import Path
+import json
+from .db import init_db,register,login,user_from_token,get_progress,save_progress
+from .planner import make_day,record_test,roadmap
+from .researcher import search_catalog,search_boe,inspect_boe
 
-<div id="wizard" class="hidden">
-<div class="step"><div id="d1" class="dot on"></div><div id="d2" class="dot"></div><div id="d3" class="dot"></div></div>
+BASE=Path(__file__).resolve().parent
+CATALOG=json.loads((BASE/"catalog.json").read_text(encoding="utf-8"))
+app=FastAPI(title="OpoRumbo V14",version="14.0")
+init_db()
 
-<div id="step1" class="card">
-<div class="mut">CONFIGURACIÓN INICIAL</div><h1>¿Qué oposición preparas?</h1>
-<div class="mut">Escríbela como la conoces. OpoRumbo buscará primero programas ya verificados y después resultados del BOE.</div>
-<input id="query" placeholder="Ej. Policía Nacional Escala Básica">
-<button id="researchBtn" class="btn blue">🔎 Investigar oposición</button>
-<div id="researchResults"></div>
-</div>
+class AuthReq(BaseModel):
+    email:EmailStr
+    password:str
+class SaveReq(BaseModel):
+    data:dict
+class ResearchSelectReq(BaseModel):
+    kind:str
+    catalog_id:str|None=None
+    boe_id:str|None=None
+class SetupReq(BaseModel):
+    opposition:dict
+    exam_date:str
+    days_per_week:int=6
+    minutes_per_day:int=180
+    target_rounds:int=3
+    target_score:int=80
+    mode:str="free"
+class PlanReq(BaseModel):
+    opposition_id:str
+    minutes:int=180
+    mode:str="free"
+    academy_topic_indexes:list[int]=[]
+    exam_date:str="2027-03-15"
+    days_per_week:int=6
+    target_rounds:int=3
+class TestResultReq(BaseModel):
+    opposition_id:str
+    topic_index:int
+    block_index:int=0
+    score:int
 
-<div id="step2" class="card hidden">
-<div class="mut">PROGRAMA ENCONTRADO</div><h2 id="foundName"></h2>
-<div id="foundMeta" class="mut"></div>
-<div id="foundWarning"></div>
-<div id="foundTopics" class="topicList"></div>
-<div class="row"><button id="back1" class="btn secondary">Atrás</button><button id="confirmProgram" class="btn">Sí, es mi oposición</button></div>
-</div>
+def require_user(a):
+    if not a or not a.lower().startswith("bearer "):raise HTTPException(401,"Falta sesión")
+    u=user_from_token(a.split(" ",1)[1])
+    if not u:raise HTTPException(401,"Sesión no válida")
+    return u
 
-<div id="step3" class="card hidden">
-<div class="mut">TU RITMO</div><h1>¿Cómo quieres prepararla?</h1>
-<div class="mut">Con esto calcularemos cuánto necesitas estudiar para completar tus vueltas.</div>
-<div class="row"><div><div class="mut" style="margin-top:8px">Fecha examen</div><input id="exam" type="date"></div><div><div class="mut" style="margin-top:8px">Minutos/día</div><input id="minutes" type="number" value="180"></div></div>
-<div class="row"><div><div class="mut" style="margin-top:8px">Días/semana</div><input id="days" type="number" value="6" min="1" max="7"></div><div><div class="mut" style="margin-top:8px">Vueltas</div><input id="rounds" type="number" value="3" min="1" max="5"></div></div>
-<select id="mode"><option value="free">Sin academia — OpoRumbo organiza todo</option><option value="academy">Con academia — yo marco lo que toca</option></select>
-<button id="finishSetup" class="btn">Crear mi plan</button>
-</div>
-</div>
+def get_opp_for_progress(p, oid):
+    if oid=="custom_researched":
+        return p.get("custom_opposition")
+    return next((o for o in CATALOG if o["id"]==oid),None)
 
-<div id="daily" class="hidden">
-<div class="mascot"><div class="bubble">Hoy solo tienes que seguir el plan 💙</div><div class="pet">🦊</div></div>
-<div class="summary" style="margin-top:10px"><div class="mini"><b id="daysLeft">—</b><span>días</span></div><div class="mini"><b id="roundPct">—</b><span>1ª vuelta</span></div><div class="mini"><b id="needDaily">—</b><span>min/día</span></div></div>
-<div class="card"><div class="top"><h2>Hoy</h2><span id="date" class="mut"></span></div><div id="tasks"></div><button id="regen" class="btn">Organizar mi día</button></div>
-<div class="card"><button id="restartSetup" class="btn secondary">Cambiar oposición / empezar de cero</button></div>
-</div>
-</div>
+@app.get("/api/health")
+def health():return {"ok":True,"version":"14.0"}
 
-<script>
-let token=localStorage.getItem('or13')||localStorage.getItem('or12')||localStorage.getItem('or11')||localStorage.getItem('or9');
-let state={},candidate=null,selectedOpp=null;
-const $=id=>document.getElementById(id), H=()=>({'Content-Type':'application/json','Authorization':'Bearer '+token});
+@app.post("/api/register")
+def api_register(x:AuthReq):
+    if len(x.password)<8:raise HTTPException(400,"Usa al menos 8 caracteres")
+    token=register(x.email,x.password)
+    if not token:raise HTTPException(409,"Ese correo ya está registrado")
+    return {"token":token}
 
-async function auth(path){
- const email=$('email').value.trim(),password=$('pass').value;
- if(!email||password.length<8){$('msg').textContent='Email válido y contraseña de 8 caracteres mínimo.';return}
- try{let r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});let j=await r.json();if(!r.ok){$('msg').textContent=j.detail||'Error';return}token=j.token;localStorage.setItem('or13',token);boot()}catch(e){$('msg').textContent='No se pudo conectar'}
-}
-async function boot(){
- if(!token)return;
- let r=await fetch('/api/me',{headers:H()});if(!r.ok)return;
- $('auth').classList.add('hidden');state=await fetch('/api/progress',{headers:H()}).then(r=>r.json());
- if(state.setup_complete){showDaily();renderDaily()}else{$('wizard').classList.remove('hidden')}
-}
-function loading(){ $('researchResults').innerHTML='<div class="loading"><div class="spinner"></div>Buscando programas y convocatorias...</div>'}
-async function research(){
- const q=$('query').value.trim();if(q.length<3)return;
- loading();
- const r=await fetch('/api/research/opposition?q='+encodeURIComponent(q),{headers:H()});const j=await r.json();
- let items=[...(j.catalog||[]),...(j.boe||[])];
- $('researchResults').innerHTML=items.length?items.map((x,i)=>`<div class="result" data-r="${i}"><div class="top"><b>${x.name}</b><span class="badge ${x.verified?'verified':'detected'}">${x.verified?'VERIFICADO':'BOE'}</span></div><div class="mut">${x.subtitle||''}${x.topics_count?' · '+x.topics_count+' temas':''}</div></div>`).join(''):'<div class="warn">No he encontrado una coincidencia clara. Prueba con el nombre oficial o añade cuerpo/escala.</div>';
- document.querySelectorAll('[data-r]').forEach(el=>el.onclick=()=>selectResult(items[+el.dataset.r]));
-}
-async function selectResult(x){
- $('researchResults').innerHTML='<div class="loading"><div class="spinner"></div>Leyendo el programa...</div>';
- let body=x.kind==='catalog'?{kind:'catalog',catalog_id:x.id}:{kind:'boe',boe_id:x.boe_id};
- let r=await fetch('/api/research/select',{method:'POST',headers:H(),body:JSON.stringify(body)});let j=await r.json();
- if(!r.ok){$('researchResults').innerHTML='<div class="warn">'+(j.detail||'No se pudo leer')+'</div>';return}
- candidate=j.opposition;$('step1').classList.add('hidden');$('step2').classList.remove('hidden');$('d2').classList.add('on');
- $('foundName').textContent=candidate.name;$('foundMeta').textContent=(candidate.source_name||'')+' · '+(candidate.topics?.length||0)+' temas';
- $('foundWarning').innerHTML=candidate.verified?'<div class="badge verified" style="display:inline-block;margin-top:8px">PROGRAMA VERIFICADO</div>':'<div class="warn">'+(candidate.warning||'Extracción preliminar: revisa la fuente oficial.')+'</div>';
- $('foundTopics').innerHTML=(candidate.topics||[]).map(t=>`<div class="topic"><b>Tema ${t.n}</b> · ${t.name}</div>`).join('')||'<div class="warn">No se detectaron temas automáticamente.</div>';
-}
-function goto3(){if(!candidate?.topics?.length){alert('No hay un temario utilizable todavía.');return}$('step2').classList.add('hidden');$('step3').classList.remove('hidden');$('d3').classList.add('on')}
-async function finish(){
- let payload={opposition:candidate,exam_date:$('exam').value,days_per_week:+$('days').value,minutes_per_day:+$('minutes').value,target_rounds:+$('rounds').value,mode:$('mode').value};
- if(!payload.exam_date){alert('Indica una fecha de examen aproximada.');return}
- let r=await fetch('/api/setup',{method:'POST',headers:H(),body:JSON.stringify(payload)});state=await r.json();
- await generate();showDaily();renderDaily();
-}
-async function generate(){
- const s=state.settings||{};let payload={opposition_id:state.selected,minutes:s.minutes_default||180,mode:state.mode||'free',academy_topic_indexes:state.academy_selected||[],exam_date:s.exam_date||'2027-03-15',days_per_week:s.days_per_week||6,target_rounds:s.target_rounds||3};
- if(payload.mode==='academy'&&!payload.academy_topic_indexes.length){payload.mode='free'}
- let r=await fetch('/api/plan/today',{method:'POST',headers:H(),body:JSON.stringify(payload)});state=await r.json();
-}
-function showDaily(){$('wizard').classList.add('hidden');$('daily').classList.remove('hidden')}
-function renderDaily(){
- $('date').textContent=new Date().toLocaleDateString('es-ES',{weekday:'short',day:'2-digit',month:'short'});
- const rm=state.roadmap||{};$('daysLeft').textContent=rm.days_left??'—';$('roundPct').textContent=(rm.first_round_pct??'—')+(rm.first_round_pct!=null?'%':'');$('needDaily').textContent=rm.required_minutes_per_study_day??'—';
- $('tasks').innerHTML=(state.tasks||[]).map((t,i)=>`<div class="task"><div class="ico">${t.kind==='test'?'📝':t.kind==='review'?'🔁':t.kind==='english'?'🌍':t.kind==='psy'?'🧠':'📘'}</div><div><b>${t.title}</b><small>${t.detail} · ${t.minutes} min</small></div><button class="check ${t.done?'done':''}" data-t="${i}">${t.done?'✓':''}</button></div>`).join('');
- document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>toggle(+b.dataset.t));
-}
-async function toggle(i){let t=state.tasks[i];t.done=!t.done;state.xp=(state.xp||0)+(t.done?t.xp:-t.xp);if(t.done&&(t.kind==='study'||t.kind==='academy')){let k=String(t.topic_index);state.topics=state.topics||{};state.topics[k]=state.topics[k]||{block:0,score:null};state.topics[k].block=Math.max(state.topics[k].block||0,(t.block_index||0)+1)}await fetch('/api/progress',{method:'PUT',headers:H(),body:JSON.stringify({data:state})});renderDaily()}
-async function restart(){if(!confirm('¿Quieres configurar otra oposición desde cero? Tu progreso actual seguirá guardado hasta que confirmes una nueva.'))return;state.setup_complete=false;await fetch('/api/progress',{method:'PUT',headers:H(),body:JSON.stringify({data:state})});location.reload()}
+@app.post("/api/login")
+def api_login(x:AuthReq):
+    token=login(x.email,x.password)
+    if not token:raise HTTPException(401,"Credenciales incorrectas")
+    return {"token":token}
 
-$('signup').onclick=()=>auth('/api/register');$('signin').onclick=()=>auth('/api/login');$('researchBtn').onclick=research;$('back1').onclick=()=>{$('step2').classList.add('hidden');$('step1').classList.remove('hidden')};$('confirmProgram').onclick=goto3;$('finishSetup').onclick=finish;$('regen').onclick=async()=>{await generate();renderDaily()};$('restartSetup').onclick=restart;
-boot();
-</script></body></html>
+@app.get("/api/me")
+def me(authorization:str|None=Header(None)):return require_user(authorization)
+
+@app.get("/api/progress")
+def progress(authorization:str|None=Header(None)):
+    u=require_user(authorization);return get_progress(u["id"])
+
+@app.put("/api/progress")
+def save(x:SaveReq,authorization:str|None=Header(None)):
+    u=require_user(authorization);save_progress(u["id"],x.data);return {"ok":True}
+
+@app.get("/api/oppositions")
+def oppositions():
+    return [{"id":o["id"],"name":o["name"],"year":o.get("year",""),"topics":len(o.get("topics",[]))} for o in CATALOG]
+
+@app.get("/api/oppositions/{oid}")
+def get_opposition(oid:str,authorization:str|None=Header(None)):
+    if oid=="custom_researched":
+        u=require_user(authorization);p=get_progress(u["id"]);o=p.get("custom_opposition")
+        if not o:raise HTTPException(404,"No hay oposición investigada guardada")
+        return o
+    o=next((o for o in CATALOG if o["id"]==oid),None)
+    if not o:raise HTTPException(404,"Oposición no encontrada")
+    return o
+
+@app.get("/api/research/opposition")
+async def research_opposition(q:str,authorization:str|None=Header(None)):
+    require_user(authorization)
+    q=q.strip()
+    if len(q)<3:raise HTTPException(400,"Escribe al menos 3 caracteres")
+    return {"query":q,"catalog":search_catalog(CATALOG,q),"boe":await search_boe(q)}
+
+@app.post("/api/research/select")
+async def research_select(x:ResearchSelectReq,authorization:str|None=Header(None)):
+    require_user(authorization)
+    if x.kind=="catalog" and x.catalog_id:
+        o=next((o for o in CATALOG if o["id"]==x.catalog_id),None)
+        if not o:raise HTTPException(404,"Oposición no encontrada")
+        return {"opposition":o,"status":"verified_catalog"}
+    if x.kind=="boe" and x.boe_id:
+        try:o=await inspect_boe(x.boe_id)
+        except Exception:raise HTTPException(502,"No se pudo leer el documento BOE")
+        return {"opposition":o,"status":"automatic_extraction"}
+    raise HTTPException(400,"Selección no válida")
+
+@app.post("/api/setup")
+def setup(x:SetupReq,authorization:str|None=Header(None)):
+    u=require_user(authorization);p=get_progress(u["id"]);o=x.opposition
+    if not o.get("topics"):raise HTTPException(400,"No se ha detectado un temario utilizable")
+    if o.get("id"):
+        p["selected"]=o["id"];p.pop("custom_opposition",None)
+    else:
+        o["id"]="custom_researched";p["selected"]="custom_researched";p["custom_opposition"]=o
+    p["setup_complete"]=True;p["mode"]=x.mode;p["academy_selected"]=[]
+    p["settings"]={
+        "exam_date":x.exam_date,
+        "days_per_week":x.days_per_week,
+        "target_rounds":x.target_rounds,
+        "minutes_today":x.minutes_per_day,
+        "minutes_default":x.minutes_per_day,
+        "target_score":max(50,min(100,x.target_score))
+    }
+    p["topics"]={};p["tasks"]=[]
+    save_progress(u["id"],p);return p
+
+@app.post("/api/test/result")
+def test_result(x:TestResultReq,authorization:str|None=Header(None)):
+    u=require_user(authorization);p=get_progress(u["id"])
+    opp=get_opp_for_progress(p,x.opposition_id)
+    if not opp:raise HTTPException(404,"Oposición no encontrada")
+    if not 0<=x.topic_index<len(opp["topics"]):raise HTTPException(400,"Tema no válido")
+    target=int((p.get("settings") or {}).get("target_score",80))
+    rec=record_test(p,x.topic_index,x.block_index,x.score,target)
+    s=p.get("settings") or {}
+    p["roadmap"]=roadmap(opp,p,s.get("exam_date","2027-03-15"),s.get("days_per_week",6),s.get("target_rounds",3))
+    save_progress(u["id"],p)
+    return {"result":rec,"progress":p}
+
+@app.post("/api/plan/today")
+def today(x:PlanReq,authorization:str|None=Header(None)):
+    u=require_user(authorization);p=get_progress(u["id"])
+    opp=get_opp_for_progress(p,x.opposition_id)
+    if not opp:raise HTTPException(404,"Oposición no encontrada")
+    p["selected"]=x.opposition_id;p["mode"]=x.mode;p["academy_selected"]=x.academy_topic_indexes
+    old=p.get("settings") or {}
+    p["settings"]={
+        "exam_date":x.exam_date,
+        "days_per_week":x.days_per_week,
+        "target_rounds":x.target_rounds,
+        "minutes_today":x.minutes,
+        "minutes_default":x.minutes,
+        "target_score":old.get("target_score",80)
+    }
+    result=make_day(opp,x.minutes,p,x.mode,x.academy_topic_indexes,x.exam_date,x.days_per_week,x.target_rounds)
+    p["tasks"]=result["tasks"];p["roadmap"]=result["roadmap"];p["due_reviews"]=result["due_reviews"]
+    save_progress(u["id"],p);return p
+
+app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
+@app.get("/")
+def index():return FileResponse(BASE/"static"/"index.html")
+@app.get("/manifest.webmanifest")
+def manifest():return FileResponse(BASE/"static"/"manifest.webmanifest",media_type="application/manifest+json")
+@app.get("/sw.js")
+def sw():return FileResponse(BASE/"static"/"sw.js",media_type="application/javascript")
