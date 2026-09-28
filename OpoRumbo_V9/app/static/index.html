@@ -3,289 +3,327 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>OpoRumbo V10</title>
+<meta name="theme-color" content="#2f8df7">
+<title>OpoRumbo V11.1</title>
 <style>
-:root{
-  --bg:#eef7ff;--card:#fff;--ink:#102544;--mut:#6f83a3;--blue:#2f8df7;
-  --green:#28b66f;--line:#dce8f5;--soft:#f7fbff;--gold:#ffbd3e;
-}
+:root{--ink:#102544;--mut:#7589a6;--line:#dbe8f4;--blue:#2f8df7;--green:#2ab36d;--soft:#f6fbff}
 *{box-sizing:border-box}
-body{margin:0;background:linear-gradient(180deg,#dff1ff 0,#f6fbff 36%,#eef7ff 100%);
-  color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,sans-serif}
-.wrap{max-width:560px;margin:auto;min-height:100vh;padding:16px 14px 110px}
-.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.brand{font-size:25px;font-weight:900}.brand span{color:var(--blue)}
-.iconbtn{border:0;background:#ffffffbb;width:40px;height:40px;border-radius:14px;font-size:20px}
-.card{background:rgba(255,255,255,.94);border:1px solid #dbe8f4;border-radius:22px;
-  box-shadow:0 10px 30px #7aa2c522;padding:15px;margin-top:12px}
-.mascot-card{padding:0;overflow:hidden;background:linear-gradient(180deg,#8ed1ff 0,#bfe8ff 48%,#f3fbff 100%)}
-.sky{height:240px;position:relative;overflow:hidden}
-.mountains{position:absolute;inset:auto 0 0;height:120px;background:
-linear-gradient(155deg,transparent 36%,#7ca7c0 37% 48%,transparent 49%) 0 15px/220px 120px repeat-x,
-linear-gradient(205deg,transparent 36%,#557f9f 37% 48%,transparent 49%) 80px 35px/260px 110px repeat-x}
-.ground{position:absolute;left:0;right:0;bottom:0;height:66px;background:linear-gradient(#79b96b,#4f8d53)}
-.bubble{position:absolute;right:18px;top:18px;background:#fff;padding:10px 13px;border-radius:18px;
-  max-width:190px;font-weight:700;box-shadow:0 6px 16px #496b8b28}
-.creature{position:absolute;left:50%;bottom:36px;transform:translateX(-50%);width:180px;height:160px}
-.creature svg{width:100%;height:100%;filter:drop-shadow(0 10px 12px #315c7840)}
-.mascot-info{display:flex;justify-content:space-between;align-items:center;background:#fff;padding:14px 16px}
-.name{font-size:22px;font-weight:900}.sub{font-size:12px;color:var(--mut)}
-.xpbar{height:10px;background:#e7eef7;border-radius:99px;overflow:hidden;margin-top:7px;width:180px}
-.xpfill{height:100%;background:linear-gradient(90deg,#2f8df7,#56c0ff);width:0}
-.energy{font-size:13px;font-weight:800;color:#29945e}
-
-h2{margin:0;font-size:20px}.date{font-size:12px;color:var(--mut)}
-.task{display:grid;grid-template-columns:44px 1fr 42px;gap:10px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}
-.task:last-child{border-bottom:0}
-.ticon{width:42px;height:42px;border-radius:13px;background:#eef6ff;display:grid;place-items:center;font-size:21px}
-.task b{font-size:15px}.task small{display:block;color:var(--mut);margin-top:4px}
-.check{width:38px;height:38px;border:2px solid #b8c9dd;border-radius:50%;background:white;font-size:20px;color:white}
-.check.done{background:var(--green);border-color:var(--green)}
-.mainbtn{width:100%;border:0;border-radius:16px;background:var(--green);color:white;padding:14px;font-weight:900;font-size:16px;margin-top:12px}
-.mode{display:flex;gap:8px}.mode button{flex:1;border:0;padding:10px;border-radius:13px;background:#edf4fb;color:#47617e;font-weight:800}
-.mode button.active{background:#dff2ff;color:#1672c9;outline:2px solid #8dc8f7}
-.hidden{display:none!important}
-.picks{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;max-height:270px;overflow:auto}
-.pick{padding:10px;border:1px solid #dbe7f3;background:#fff;border-radius:13px;font-size:12px}
-.pick.sel{border-color:#2f8df7;background:#eaf5ff}
-.auth input,select,input[type=number],input[type=date]{width:100%;border:1px solid #d6e4f1;border-radius:13px;padding:12px;background:white;font-size:15px;margin-top:8px}
+body{margin:0;background:linear-gradient(#dff1ff,#f7fbff 40%,#eef7ff);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+.wrap{max-width:560px;margin:auto;min-height:100vh;padding:14px 14px 110px}
+.top{display:flex;justify-content:space-between;align-items:center}
+.brand{font-weight:900;font-size:25px}.brand span{color:var(--blue)}
+.badge{font-size:11px;background:#e7f3ff;color:#1672c9;padding:5px 8px;border-radius:99px;font-weight:800}
+.card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:15px;margin-top:12px;box-shadow:0 9px 28px #799bbf1c}
+.mut{color:var(--mut);font-size:12px}.hidden{display:none!important}
+.mascot{height:210px;border-radius:24px;overflow:hidden;position:relative;background:linear-gradient(#8ed3ff,#d9f2ff 65%,#8bc77d 66%);margin-top:10px}
+.mountain{position:absolute;bottom:50px;width:0;height:0;border-left:120px solid transparent;border-right:120px solid transparent;border-bottom:120px solid #7599ae;left:50%;transform:translateX(-50%)}
+.pet{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);font-size:100px}
+.speech{position:absolute;right:13px;top:13px;background:white;border-radius:15px;padding:9px 11px;font-weight:750;font-size:13px;max-width:170px}
+.petbar{display:flex;justify-content:space-between;align-items:center;margin-top:9px}.name{font-size:20px;font-weight:900}
+.xp{height:8px;width:150px;background:#e8eff7;border-radius:99px;overflow:hidden;margin-top:5px}.xp>div{height:100%;background:var(--blue)}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}.mini{background:#f3f8fd;border-radius:13px;padding:9px;text-align:center}.mini b{display:block;font-size:16px}.mini span{font-size:10px;color:var(--mut)}
+h2{font-size:19px;margin:0}
+.task{display:grid;grid-template-columns:40px 1fr 38px;align-items:center;gap:9px;padding:12px 0;border-bottom:1px solid var(--line)}.task:last-child{border:0}
+.ico{width:38px;height:38px;background:#eff6fd;border-radius:12px;display:grid;place-items:center}
+.task b{font-size:14px}.task small{display:block;color:var(--mut);margin-top:3px}
+.check{width:35px;height:35px;border:2px solid #b9cada;border-radius:50%;background:#fff;color:white;font-size:18px}.check.done{background:var(--green);border-color:var(--green)}
+.btn{border:0;border-radius:15px;padding:13px;width:100%;font-weight:900;font-size:15px;margin-top:9px;background:var(--green);color:white}
+.secondary{background:#eaf3fb;color:#294d70}
+.mode{display:grid;grid-template-columns:1fr 1fr;gap:7px}.mode button{border:0;border-radius:12px;padding:9px;font-weight:800;background:#eef4fa;color:#58708d}.mode .active{background:#dcefff;color:#146fc5;outline:2px solid #8bc8f9}
+input,select{width:100%;padding:11px;border:1px solid #d7e4ef;border-radius:12px;background:#fff;margin-top:8px;font-size:14px}
+.settingsGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.picks{display:grid;grid-template-columns:1fr 1fr;gap:7px;max-height:220px;overflow:auto;margin-top:9px}.pick{border:1px solid var(--line);padding:8px;border-radius:12px;font-size:11px}.pick.sel{border-color:var(--blue);background:#edf7ff}
+.settingsTitle{display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.settingsBody{margin-top:10px}
+#overlay{position:fixed;inset:0;background:#09243aaa;display:none;align-items:center;justify-content:center;padding:20px;z-index:50}#overlay.show{display:flex}
+.reward{width:min(340px,100%);background:#fff;border-radius:26px;padding:21px;text-align:center}.rewardPet{font-size:96px}.chips{display:flex;gap:8px;justify-content:center;margin:11px 0}.chip{background:#f0f7ff;border-radius:12px;padding:9px 11px;font-weight:900;font-size:13px}
 .row{display:flex;gap:8px}.row>*{flex:1}
-.secondary{background:#edf4fb!important;color:#2a4c6d!important}
-
-#overlay{position:fixed;inset:0;background:#09243aaa;display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
-#overlay.show{display:flex}
-.reward{width:min(360px,100%);background:white;border-radius:28px;padding:22px;text-align:center;animation:pop .35s ease}
-@keyframes pop{from{transform:scale(.72);opacity:0}to{transform:scale(1);opacity:1}}
-.rewardCreature{width:150px;height:135px;margin:auto;animation:bounce .6s ease}
-@keyframes bounce{0%,100%{transform:translateY(0)}40%{transform:translateY(-18px)}}
-.reward h3{font-size:24px;margin:4px}.reward .gain{display:flex;justify-content:center;gap:10px;margin:13px 0}
-.chip{background:#f1f8ff;padding:10px 13px;border-radius:13px;font-weight:900}
-.confetti{font-size:30px;letter-spacing:8px}
-
-.onboarding{position:fixed;inset:0;background:linear-gradient(#eff8ff,#fff);z-index:70;overflow:auto;padding:22px}
-.onboardBox{max-width:480px;margin:auto;text-align:center}
-.evo{display:flex;align-items:flex-end;justify-content:space-between;gap:6px;margin:26px 0}
-.stage{flex:1}.mini{font-size:36px}.stage b{display:block;font-size:12px}.stage small{font-size:9px;color:var(--mut)}
-.arrow{color:#87a7c5;font-size:18px;padding-bottom:25px}
-.onboardBtn{width:100%;border:0;background:var(--blue);color:white;border-radius:16px;padding:14px;font-weight:900;font-size:16px}
-.note{background:#f2f8ff;border-radius:15px;padding:12px;color:#56718e;font-size:13px;margin:14px 0}
+.auth input{margin-top:8px}
 </style>
 </head>
 <body>
-
-<div id="onboarding" class="onboarding hidden">
- <div class="onboardBox">
-   <div class="brand">Opo<span>Rumbo</span></div>
-   <h1>Tu compañero de oposición</h1>
-   <p class="sub" style="font-size:14px">Crece contigo desde hoy hasta el examen.</p>
-   <div style="font-size:88px;margin:20px">🥚</div>
-   <div class="evo">
-     <div class="stage"><div class="mini">🥚</div><b>Huevo</b><small>Empiezas</small></div><div class="arrow">›</div>
-     <div class="stage"><div class="mini">🐾</div><b>Bebé</b><small>Primeros hábitos</small></div><div class="arrow">›</div>
-     <div class="stage"><div class="mini">✨</div><b>Joven</b><small>1ª vuelta</small></div><div class="arrow">›</div>
-     <div class="stage"><div class="mini">🌟</div><b>Adulto</b><small>2ª vuelta</small></div><div class="arrow">›</div>
-     <div class="stage"><div class="mini">🏆</div><b>Final</b><small>3ª vuelta</small></div>
-   </div>
-   <div class="note">Cada tarea completada le da energía. Si un día no puedes, no pasa nada: te esperará.</div>
-   <button id="startOnboarding" class="onboardBtn">¡Empezar!</button>
- </div>
-</div>
-
 <div class="wrap">
- <div class="top">
-   <div class="brand">Opo<span>Rumbo</span></div>
-   <button class="iconbtn">☰</button>
- </div>
+  <div class="top">
+    <div class="brand">Opo<span>Rumbo</span></div>
+    <div class="badge">V11.1</div>
+  </div>
 
- <div id="authCard" class="card auth">
-   <h2>Entrar</h2>
-   <input id="emailInput" type="email" placeholder="Email">
-   <input id="passInput" type="password" placeholder="Contraseña">
-   <div class="row">
-     <button id="signupBtn" class="mainbtn">Crear cuenta</button>
-     <button id="signinBtn" class="mainbtn secondary">Entrar</button>
-   </div>
-   <div id="authMsg" class="sub" style="margin-top:8px"></div>
- </div>
+  <div id="authCard" class="card auth">
+    <h2>Entrar o crear cuenta</h2>
+    <input id="email" type="email" placeholder="Email">
+    <input id="pass" type="password" placeholder="Contraseña (mínimo 8 caracteres)">
+    <div class="row">
+      <button id="signup" class="btn">Crear cuenta</button>
+      <button id="signin" class="btn secondary">Entrar</button>
+    </div>
+    <div id="authMsg" class="mut" style="margin-top:8px"></div>
+  </div>
 
- <div id="app" class="hidden">
-   <div class="card mascot-card">
-     <div class="sky">
-       <div class="mountains"></div><div class="ground"></div>
-       <div id="bubble" class="bubble">¡Hoy también sumamos! 💙</div>
-       <div class="creature" id="creature"></div>
-     </div>
-     <div class="mascot-info">
-       <div>
-         <div class="name">Lumi <span class="sub" id="levelText">Nv. 1</span></div>
-         <div class="xpbar"><div id="xpfill" class="xpfill"></div></div>
-         <div class="sub"><span id="xpText">0 / 300 XP</span></div>
-       </div>
-       <div class="energy">😊 <span id="energyText">100%</span></div>
-     </div>
-   </div>
+  <div id="app" class="hidden">
+    <div class="mascot">
+      <div class="mountain"></div>
+      <div id="speech" class="speech">Hoy también sumamos 💙</div>
+      <div id="pet" class="pet">🦊</div>
+    </div>
 
-   <div class="card">
-     <div class="mode">
-       <button id="freeBtn" class="active">Sin academia</button>
-       <button id="academyBtn">Con academia</button>
-     </div>
-     <div id="academyPanel" class="hidden">
-       <div class="sub" style="margin-top:10px">Marca lo que te toca hoy.</div>
-       <div id="topicPicks" class="picks"></div>
-     </div>
-     <select id="opp"></select>
-     <input id="mins" type="number" value="180" min="30">
-     <button id="planBtn" class="mainbtn">Organizar mi día</button>
-   </div>
+    <div class="petbar">
+      <div>
+        <div class="name">Lumi <span class="mut" id="level">Nv. 1</span></div>
+        <div class="xp"><div id="xpbar" style="width:0"></div></div>
+      </div>
+      <div class="mut"><b id="xptext">0 XP</b></div>
+    </div>
 
-   <div class="card">
-     <div class="top" style="margin:0">
-       <h2>Tu plan de hoy</h2>
-       <div id="date" class="date"></div>
-     </div>
-     <div id="tasks"><div class="sub" style="padding:16px 0">Pulsa “Organizar mi día”.</div></div>
-   </div>
- </div>
+    <div class="summary">
+      <div class="mini"><b id="daysLeft">—</b><span>días hasta examen</span></div>
+      <div class="mini"><b id="roundPct">—</b><span>1ª vuelta</span></div>
+      <div class="mini"><b id="needDaily">—</b><span>min/día necesarios</span></div>
+    </div>
+
+    <div class="card">
+      <div class="top"><h2>Tu plan de hoy</h2><span id="date" class="mut"></span></div>
+      <div id="tasks"><div class="mut" style="padding:14px 0">Organiza tu día para empezar.</div></div>
+      <button id="planBtn" class="btn">Organizar mi día</button>
+    </div>
+
+    <div class="card">
+      <div class="settingsTitle" id="settingsToggle">
+        <h2>⚙️ Ajustar mi preparación</h2>
+        <span id="settingsArrow">▼</span>
+      </div>
+
+      <div id="settingsBody" class="settingsBody">
+        <div class="mode">
+          <button id="freeBtn" class="active">Sin academia</button>
+          <button id="academyBtn">Con academia</button>
+        </div>
+
+        <div id="academyPanel" class="hidden">
+          <div class="mut" style="margin-top:9px">Marca los temas que te toca trabajar hoy.</div>
+          <div id="picks" class="picks"></div>
+        </div>
+
+        <div class="mut" style="margin-top:10px">Oposición</div>
+        <select id="opp"></select>
+
+        <div class="settingsGrid">
+          <div>
+            <div class="mut" style="margin-top:8px">Fecha de examen</div>
+            <input id="exam" type="date">
+          </div>
+          <div>
+            <div class="mut" style="margin-top:8px">Minutos hoy</div>
+            <input id="mins" type="number" min="30" value="180">
+          </div>
+          <div>
+            <div class="mut" style="margin-top:8px">Días por semana</div>
+            <input id="daysWeek" type="number" min="1" max="7" value="6">
+          </div>
+          <div>
+            <div class="mut" style="margin-top:8px">Vueltas objetivo</div>
+            <input id="rounds" type="number" min="1" max="5" value="3">
+          </div>
+        </div>
+
+        <button id="saveSettingsBtn" class="btn secondary">Guardar ajustes</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📈 Ritmo hasta el examen</h2>
+      <div style="margin-top:10px" class="mut">
+        Fase: <b id="phase">—</b><br>
+        Días reales de estudio restantes: <b id="studyDays">—</b><br>
+        Tiempo pendiente estimado: <b id="hoursNeed">—</b><br>
+        Necesitas aprox.: <b id="dailyNeedBig">—</b> min/día
+      </div>
+    </div>
+  </div>
 </div>
 
 <div id="overlay">
- <div class="reward">
-   <div class="confetti">✨⭐✨</div>
-   <div id="rewardCreature" class="rewardCreature"></div>
-   <h3>¡Conseguido!</h3>
-   <div class="sub">Lumi está un poquito más fuerte.</div>
-   <div class="gain">
-     <div class="chip">⭐ +<span id="gainXP">50</span> XP</div>
-     <div class="chip">❤️ +Energía</div>
-   </div>
-   <button id="closeReward" class="mainbtn">¡Genial!</button>
- </div>
+  <div class="reward">
+    <div class="rewardPet">🦊</div>
+    <h3>¡Conseguido!</h3>
+    <div class="mut">Otro paso más hacia tu plaza.</div>
+    <div class="chips">
+      <div class="chip">⭐ +<span id="gainxp">0</span> XP</div>
+      <div class="chip">❤️ +energía</div>
+    </div>
+    <button id="closeReward" class="btn">¡Genial!</button>
+  </div>
 </div>
 
 <script>
-let token=localStorage.getItem('or9');
-let state={};
-let mode='free';
-let academySelected=[];
-let opposition=null;
-
+let token=localStorage.getItem('or11')||localStorage.getItem('or9');
+let state={},mode='free',selected=[],opposition=null;
 const $=id=>document.getElementById(id);
 const H=()=>({'Content-Type':'application/json','Authorization':'Bearer '+token});
+const petStages=['🥚','🦊','🦊','🐺','🦄'];
 
-function mascotSVG(stage=1,happy=false){
- const size = stage>=4 ? 1.08 : stage>=3 ? 1.02 : stage==1 ? .9 : .96;
- const extra = stage>=4 ? '<path d="M132 55 Q165 25 162 78 Q156 107 136 112" fill="#d9efff" stroke="#3775a8" stroke-width="5"/>' : '';
- const crest = stage>=3 ? '<path d="M86 28 L98 5 L109 32 Z" fill="#69bfff"/>' : '';
- const wings = stage>=5 ? '<path d="M45 80 Q5 48 20 112 Q38 127 55 101" fill="#dff5ff" stroke="#3775a8" stroke-width="4"/><path d="M132 78 Q174 45 161 113 Q145 128 128 100" fill="#dff5ff" stroke="#3775a8" stroke-width="4"/>' : '';
- return `<svg viewBox="0 0 180 160" style="transform:scale(${size})">
- <defs><linearGradient id="fur" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fffdf4"/><stop offset="1" stop-color="#d7efff"/></linearGradient></defs>
- ${wings}${extra}
- <path d="M44 65 Q18 43 34 22 Q60 27 72 48" fill="url(#fur)" stroke="#3775a8" stroke-width="5"/>
- <path d="M132 64 Q158 40 145 20 Q116 27 107 48" fill="url(#fur)" stroke="#3775a8" stroke-width="5"/>
- ${crest}
- <ellipse cx="90" cy="94" rx="52" ry="48" fill="url(#fur)" stroke="#3775a8" stroke-width="5"/>
- <ellipse cx="90" cy="76" rx="42" ry="38" fill="#fffdf7"/>
- <ellipse cx="73" cy="76" rx="8" ry="11" fill="#183759"/><ellipse cx="107" cy="76" rx="8" ry="11" fill="#183759"/>
- <circle cx="76" cy="72" r="3" fill="#fff"/><circle cx="110" cy="72" r="3" fill="#fff"/>
- <path d="${happy?'M80 92 Q90 103 101 92':'M83 92 Q90 98 98 92'}" fill="none" stroke="#d86e70" stroke-width="4" stroke-linecap="round"/>
- <path d="M50 103 Q24 113 36 137 Q58 145 72 124" fill="#c9e8ff" stroke="#3775a8" stroke-width="4"/>
- <path d="M129 105 Q154 112 144 139 Q123 145 110 125" fill="#c9e8ff" stroke="#3775a8" stroke-width="4"/>
- <circle cx="90" cy="112" r="9" fill="#ffe98f"/>
- </svg>`;
+function msg(s){$('authMsg').textContent=s}
+
+async function auth(path){
+  const email=$('email').value.trim(),password=$('pass').value;
+  if(!email||password.length<8){msg('Email válido y contraseña de 8 caracteres mínimo.');return}
+  try{
+    const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const j=await r.json();
+    if(!r.ok){msg(j.detail||'Error');return}
+    token=j.token;localStorage.setItem('or11',token);await boot();
+  }catch(e){msg('No se pudo conectar.')}
 }
 
-function calcStage(){
- const done = Object.values(state.topics||{}).reduce((a,x)=>a+(x.block||0),0);
- if(done>=45) return 5;
- if(done>=28) return 4;
- if(done>=14) return 3;
- if(done>=4) return 2;
- return 1;
-}
-function ensurePet(){
- state.pet=state.pet||{name:'Lumi',energy:100,totalCompleted:0,onboarded:false};
-}
-function renderPet(happy=false){
- ensurePet();
- const stage=calcStage();
- $('creature').innerHTML=mascotSVG(stage,happy);
- $('rewardCreature').innerHTML=mascotSVG(stage,true);
- const xp=state.xp||0;
- const level=Math.floor(xp/300)+1;
- const into=xp%300;
- $('levelText').textContent='Nv. '+level;
- $('xpText').textContent=into+' / 300 XP';
- $('xpfill').style.width=(into/300*100)+'%';
- $('energyText').textContent=Math.round(state.pet.energy||0)+'%';
- $('bubble').textContent=(state.pet.energy||0)<40?'Te he echado de menos. ¿Hacemos una juntos? 💙':'¡Hoy también sumamos! 💙';
-}
 function setMode(m){
- mode=m;
- $('freeBtn').classList.toggle('active',m==='free');
- $('academyBtn').classList.toggle('active',m==='academy');
- $('academyPanel').classList.toggle('hidden',m!=='academy');
+  mode=m;
+  $('freeBtn').classList.toggle('active',m==='free');
+  $('academyBtn').classList.toggle('active',m==='academy');
+  $('academyPanel').classList.toggle('hidden',m!=='academy');
 }
-async function authCall(path){
- const email=$('emailInput').value.trim(),password=$('passInput').value;
- if(!email||password.length<8){$('authMsg').textContent='Email válido y contraseña de 8 caracteres mínimo.';return}
- try{
-   const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-   const j=await r.json();
-   if(!r.ok){$('authMsg').textContent=j.detail||'Error';return}
-   token=j.token;localStorage.setItem('or9',token);await boot();
- }catch(e){$('authMsg').textContent='No se pudo conectar.'}
-}
+
 async function boot(){
- if(!token)return;
- const me=await fetch('/api/me',{headers:H()});
- if(!me.ok){localStorage.removeItem('or9');token=null;return}
- $('authCard').classList.add('hidden');$('app').classList.remove('hidden');
- const os=await fetch('/api/oppositions').then(r=>r.json());
- $('opp').innerHTML=os.map(o=>`<option value="${o.id}">${o.name}</option>`).join('');
- state=await fetch('/api/progress',{headers:H()}).then(r=>r.json());
- ensurePet(); mode=state.mode||'free';academySelected=state.academy_selected||[];setMode(mode);
- await loadOpp(); render(); renderPet();
- if(!state.pet.onboarded)$('onboarding').classList.remove('hidden');
+  if(!token)return;
+  let r=await fetch('/api/me',{headers:H()});
+  if(!r.ok){localStorage.removeItem('or11');return}
+  $('authCard').classList.add('hidden');
+  $('app').classList.remove('hidden');
+
+  const os=await fetch('/api/oppositions').then(r=>r.json());
+  $('opp').innerHTML=os.map(o=>`<option value="${o.id}">${o.name}</option>`).join('');
+
+  state=await fetch('/api/progress',{headers:H()}).then(r=>r.json());
+  state.pet=state.pet||{energy:100,totalCompleted:0};
+
+  const s=state.settings||{};
+  $('exam').value=s.exam_date||'2027-03-15';
+  $('mins').value=s.minutes_today||180;
+  $('daysWeek').value=s.days_per_week||6;
+  $('rounds').value=s.target_rounds||3;
+
+  mode=state.mode||'free';
+  selected=state.academy_selected||[];
+  setMode(mode);
+  await loadOpp();
+  render();
 }
-async function persist(){
- await fetch('/api/progress',{method:'PUT',headers:H(),body:JSON.stringify({data:state})});
-}
+
 async function loadOpp(){
- opposition=await fetch('/api/oppositions/'+$('opp').value).then(r=>r.json());
- $('topicPicks').innerHTML=opposition.topics.map((t,i)=>`<div class="pick ${academySelected.includes(i)?'sel':''}" data-pick="${i}"><b>Tema ${t.n}</b><br>${t.name}</div>`).join('');
- document.querySelectorAll('[data-pick]').forEach(x=>x.onclick=()=>{let i=+x.dataset.pick;academySelected=academySelected.includes(i)?academySelected.filter(v=>v!==i):[...academySelected,i];loadOpp()})
+  opposition=await fetch('/api/oppositions/'+$('opp').value).then(r=>r.json());
+  $('picks').innerHTML=opposition.topics.map((t,i)=>`<div class="pick ${selected.includes(i)?'sel':''}" data-p="${i}"><b>Tema ${t.n}</b><br>${t.name}</div>`).join('');
+  document.querySelectorAll('[data-p]').forEach(el=>el.onclick=()=>{
+    const i=+el.dataset.p;
+    selected=selected.includes(i)?selected.filter(x=>x!==i):[...selected,i];
+    loadOpp();
+  });
 }
-async function plan(){
- if(mode==='academy'&&!academySelected.length){alert('Marca al menos un tema de academia.');return}
- const r=await fetch('/api/plan/today',{method:'POST',headers:H(),body:JSON.stringify({opposition_id:$('opp').value,minutes:+$('mins').value,mode,academy_topic_indexes:academySelected})});
- state=await r.json();ensurePet();render();renderPet()
+
+async function makePlan(){
+  if(mode==='academy'&&!selected.length){alert('Marca al menos un tema de academia.');return}
+  const payload={
+    opposition_id:$('opp').value,
+    minutes:+$('mins').value,
+    mode,
+    academy_topic_indexes:selected,
+    exam_date:$('exam').value,
+    days_per_week:+$('daysWeek').value,
+    target_rounds:+$('rounds').value
+  };
+  const r=await fetch('/api/plan/today',{method:'POST',headers:H(),body:JSON.stringify(payload)});
+  state=await r.json();
+  state.pet=state.pet||{energy:100,totalCompleted:0};
+  render();
 }
-async function toggleTask(i){
- const t=state.tasks[i];
- if(t.done){t.done=false;state.xp=Math.max(0,(state.xp||0)-t.xp);await persist();render();renderPet();return}
- t.done=true;state.xp=(state.xp||0)+t.xp;ensurePet();state.pet.energy=Math.min(100,(state.pet.energy||0)+8);state.pet.totalCompleted=(state.pet.totalCompleted||0)+1;
- if(t.kind==='study'||t.kind==='academy'){
-   const k=String(t.topic_index);state.topics=state.topics||{};state.topics[k]=state.topics[k]||{block:0,score:null};
-   state.topics[k].block=Math.max(state.topics[k].block||0,(t.block_index||0)+1);
- }
- await persist();$('gainXP').textContent=t.xp;$('overlay').classList.add('show');render();renderPet(true)
+
+async function persist(){
+  await fetch('/api/progress',{method:'PUT',headers:H(),body:JSON.stringify({data:state})});
 }
+
+async function saveSettings(){
+  state.settings={
+    exam_date:$('exam').value,
+    minutes_today:+$('mins').value,
+    days_per_week:+$('daysWeek').value,
+    target_rounds:+$('rounds').value
+  };
+  state.mode=mode;
+  state.academy_selected=selected;
+  await persist();
+  alert('Ajustes guardados');
+}
+
+async function toggle(i){
+  const t=state.tasks[i];
+  if(t.done){
+    t.done=false;
+    state.xp=Math.max(0,(state.xp||0)-t.xp);
+    await persist();render();return;
+  }
+
+  t.done=true;
+  state.xp=(state.xp||0)+t.xp;
+  state.pet=state.pet||{energy:100,totalCompleted:0};
+  state.pet.energy=Math.min(100,(state.pet.energy||0)+6);
+  state.pet.totalCompleted=(state.pet.totalCompleted||0)+1;
+
+  if(t.kind==='study'||t.kind==='academy'){
+    const k=String(t.topic_index);
+    state.topics=state.topics||{};
+    state.topics[k]=state.topics[k]||{block:0,score:null};
+    state.topics[k].block=Math.max(state.topics[k].block||0,(t.block_index||0)+1);
+  }
+
+  await persist();
+  $('gainxp').textContent=t.xp;
+  $('overlay').classList.add('show');
+  render();
+}
+
 function render(){
- $('date').textContent=new Date().toLocaleDateString('es-ES',{weekday:'short',day:'2-digit',month:'short'});
- $('tasks').innerHTML=(state.tasks||[]).map((t,i)=>`<div class="task">
-   <div class="ticon">${t.kind==='test'?'📝':t.kind==='review'?'🔁':t.kind==='english'?'🌍':t.kind==='psy'?'🧠':'📘'}</div>
-   <div><b>${t.title}</b><small>${t.detail} · ${t.minutes} min</small></div>
-   <button class="check ${t.done?'done':''}" data-task="${i}">${t.done?'✓':''}</button>
- </div>`).join('')||'<div class="sub" style="padding:16px 0">Pulsa “Organizar mi día”.</div>';
- document.querySelectorAll('[data-task]').forEach(b=>b.onclick=()=>toggleTask(+b.dataset.task));
+  const xp=state.xp||0,lvl=Math.floor(xp/300)+1,within=xp%300;
+  $('level').textContent='Nv. '+lvl;
+  $('xptext').textContent=xp+' XP';
+  $('xpbar').style.width=(within/300*100)+'%';
+
+  const blocksDone=Object.values(state.topics||{}).reduce((a,x)=>a+(x.block||0),0);
+  const stage=blocksDone>=45?4:blocksDone>=28?3:blocksDone>=14?2:blocksDone>=4?1:0;
+  $('pet').textContent=petStages[stage];
+
+  $('speech').textContent=(state.pet?.energy||100)<40?'Te esperaba. ¿Hacemos una juntos? 💙':'Hoy también sumamos 💙';
+
+  $('date').textContent=new Date().toLocaleDateString('es-ES',{weekday:'short',day:'2-digit',month:'short'});
+
+  $('tasks').innerHTML=(state.tasks||[]).map((t,i)=>`<div class="task">
+    <div class="ico">${t.kind==='test'?'📝':t.kind==='review'?'🔁':t.kind==='english'?'🌍':t.kind==='psy'?'🧠':'📘'}</div>
+    <div><b>${t.title}</b><small>${t.detail} · ${t.minutes} min</small></div>
+    <button class="check ${t.done?'done':''}" data-t="${i}">${t.done?'✓':''}</button>
+  </div>`).join('')||'<div class="mut" style="padding:14px 0">Organiza tu día para empezar.</div>';
+
+  document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>toggle(+b.dataset.t));
+
+  const r=state.roadmap||{};
+  $('daysLeft').textContent=r.days_left??'—';
+  $('roundPct').textContent=(r.first_round_pct??'—')+(r.first_round_pct!=null?'%':'');
+  $('needDaily').textContent=r.required_minutes_per_study_day??'—';
+  $('phase').textContent=r.phase||'—';
+  $('studyDays').textContent=r.study_days_left||'—';
+  $('hoursNeed').textContent=r.estimated_minutes_required?Math.round(r.estimated_minutes_required/60)+' h':'—';
+  $('dailyNeedBig').textContent=r.required_minutes_per_study_day||'—';
 }
-$('signupBtn').onclick=()=>authCall('/api/register');
-$('signinBtn').onclick=()=>authCall('/api/login');
-$('freeBtn').onclick=()=>setMode('free');$('academyBtn').onclick=()=>setMode('academy');
-$('opp').onchange=loadOpp;$('planBtn').onclick=plan;
+
+$('signup').onclick=()=>auth('/api/register');
+$('signin').onclick=()=>auth('/api/login');
+$('freeBtn').onclick=()=>setMode('free');
+$('academyBtn').onclick=()=>setMode('academy');
+$('opp').onchange=loadOpp;
+$('planBtn').onclick=makePlan;
+$('saveSettingsBtn').onclick=saveSettings;
 $('closeReward').onclick=()=>$('overlay').classList.remove('show');
-$('startOnboarding').onclick=async()=>{ensurePet();state.pet.onboarded=true;await persist();$('onboarding').classList.add('hidden')};
+
+$('settingsToggle').onclick=()=>{
+  $('settingsBody').classList.toggle('hidden');
+  $('settingsArrow').textContent=$('settingsBody').classList.contains('hidden')?'▶':'▼';
+};
+
 boot();
 </script>
 </body>
