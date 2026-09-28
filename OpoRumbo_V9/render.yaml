@@ -1,6 +1,7 @@
 services:
   - type: web
     name: oporumbo
+    rootDir: OpoRumbo_V9
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
