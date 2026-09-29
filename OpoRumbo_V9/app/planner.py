@@ -161,21 +161,31 @@ def roadmap(opposition, progress, exam_date, days_per_week=6, target_rounds=3):
 
 
 def make_day(opposition, minutes, progress, mode="free", academy_topic_indexes=None,
-             exam_date=None, days_per_week=6, target_rounds=3):
+             exam_date=None, days_per_week=6, target_rounds=3, completed_tasks=None):
     from .workload import weights, pace, coverage, test_coverage, unit
-    minutes = max(1, int(minutes))
+    minutes = max(0, int(minutes))
     target = progress.get("settings", {}).get("target_score", 80)
     personal = pace(progress)
     ws = weights(opposition)
     tasks = []
     remaining = minutes
-    selected = list(dict.fromkeys(academy_topic_indexes or []))[:2] if mode == "academy" else []
+    selected = list(dict.fromkeys(academy_topic_indexes or [])) if mode == "academy" else []
+    completed_tasks = completed_tasks or []
+    def task_key(task):
+        kind=task.get("kind")
+        if kind in ("study","academy","urgent_review","maintenance"):kind="reading"
+        return kind,task.get("topic_index"),task.get("block_index")
+    done_keys={task_key(t) for t in completed_tasks}
+    task_limit=max(5,2*len(selected)+1) if selected else 5
     due = _due_reviews(opposition, progress)
     used_blocks = set()
+    if mode=="academy" and not selected:
+        return {"tasks":[],"roadmap":roadmap(opposition,progress,exam_date,days_per_week,target_rounds),"due_reviews":len(due)}
 
     def append(kind, w, base, category, title, fraction=1, cap=None, source=None):
         nonlocal remaining
-        if remaining < 1 or len(tasks) >= 5: return
+        if remaining < 1 or len(tasks) >= task_limit: return
+        if task_key({"kind":kind,**w}) in done_keys:return
         predicted = max(1, math.ceil(base*personal[category]["factor"]))
         allocation = min(remaining, predicted, cap if cap is not None else remaining)
         share = allocation/predicted
@@ -198,18 +208,34 @@ def make_day(opposition, minutes, progress, mode="free", academy_topic_indexes=N
         # Keep a test slot; a short day earns only its fraction, never a whole block.
         test_cap=min(15,max(1,remaining//5))
         cap=max(1,remaining-test_cap)
-        if kind=="academy" and len(selected)>1: cap=max(1,cap//len(selected))
         if fraction>0: append(kind,w,base,category,("Academia · " if kind=="academy" else "")+f"Tema {i+1} · "+opposition["topics"][i]["name"],fraction,cap)
         test_fraction=max(0,1-min(1,tested-r))
         if remaining and test_fraction>0:
             append("test",w,unit(w["weight"],r,"test")*test_fraction,"test","Test del bloque",test_fraction,cap=test_cap if fraction else remaining,source=kind)
         used_blocks.add((i,b))
 
-    # Academy selection is fixed first; reviews use the remaining daily budget.
+    # Every explicit selection must be represented, even after the daily budget
+    # was spent. A completed pair already represents its topic today; don't
+    # silently advance that topic to another block on every replan.
+    academy_blocks=[]
     for i in selected:
         candidates=[w for w in ws if w["topic_index"]==i]
         if candidates:
-            pair(min(candidates,key=lambda w:min(coverage(_topic_state(progress,i),w["block_index"]),test_coverage(_topic_state(progress,i),w["block_index"]))),"academy")
+            prior=next((t for t in completed_tasks if t.get("topic_index")==i and (t.get("kind")=="academy" or t.get("source")=="academy")),None)
+            w=next((w for w in candidates if prior and w["block_index"]==prior.get("block_index")),None)
+            w=w or min(candidates,key=lambda w:min(coverage(_topic_state(progress,i),w["block_index"]),test_coverage(_topic_state(progress,i),w["block_index"])))
+            key=(i,w["block_index"])
+            used_blocks.add(key)
+            if ("reading",*key) not in done_keys or ("test",*key) not in done_keys:
+                academy_blocks.append(w)
+    academy_pool=max(minutes,30*len(academy_blocks))
+    academy_spent=0
+    for index,w in enumerate(academy_blocks):
+        remaining=max(30,(academy_pool-academy_spent)//(len(academy_blocks)-index))
+        allowance=remaining
+        pair(w,"academy")
+        academy_spent+=allowance-remaining
+    remaining=max(0,minutes-academy_spent)
     for rev in (due if selected or len(ws)>1 else []):
         key=(rev["topic_index"],rev["block_index"])
         if key in used_blocks: continue  # The paired study/test already revisits it today.

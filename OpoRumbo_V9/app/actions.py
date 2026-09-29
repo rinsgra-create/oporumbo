@@ -5,6 +5,7 @@ from copy import deepcopy
 from fastapi import HTTPException
 from .workload import coverage, test_coverage, record_session
 from .planner import record_test, roadmap, _due_reviews, _today
+from .pet import companion
 
 
 def identify_tasks(progress):
@@ -20,6 +21,7 @@ def complete_task(progress, opposition, task_id, score=None, actual_minutes=None
         raise HTTPException(409, "El plan ha cambiado. Actualiza y selecciona la tarea de nuevo.")
     if task.get("done"):
         return  # Retrying after a lost response cannot double XP or test results.
+    companion(progress)
     topic_key=str(task.get("topic_index"))
     undo={"id":task_id,"topic_key":topic_key,"topic_before":deepcopy(progress.get("topics",{}).get(topic_key)),
           "task_before":deepcopy(task),"energy_before":progress.get("pet",{}).get("energy",100), "practice_before":deepcopy(progress.get("practice_credit",{}))}
@@ -67,6 +69,13 @@ def complete_task(progress, opposition, task_id, score=None, actual_minutes=None
     pet = progress.setdefault("pet", {"type": "auri", "name": "Auri"})
     pet["energy"] = min(100, int(pet.get("energy", 100)) + 6)
     pet["totalCompleted"] = int(pet.get("totalCompleted", 0)) + 1
+    pet['growth'] += 1
+    undo['egg_gain']=int(pet['egg_started'] and not pet['hatched'])
+    pet['egg_tasks'] += undo['egg_gain']
+    if task.get('extra'):
+        pet['food'] += 1
+        pet['food_earned'] += 1
+        task['food_reward'] = 1
     settings = progress.get("settings", {})
     progress["roadmap"] = roadmap(opposition, progress, settings.get("exam_date"), settings.get("days_per_week", 6), settings.get("target_rounds", 3))
     progress["due_reviews"] = len(_due_reviews(opposition, progress))
@@ -84,6 +93,14 @@ def undo_last_task(progress, opposition, task_id):
     key=undo["topic_key"]
     if not task or progress.get("topics",{}).get(key)!=undo["topic_after"]:
         raise HTTPException(409,"El progreso de este tema ha cambiado. No se puede deshacer automáticamente.")
+    pet=companion(progress)
+    reward=task.get('food_reward',0)
+    if reward and pet['food'] < reward:
+        raise HTTPException(409,'La comida de esta tarea ya se ha usado. No se puede deshacer.')
+    pet['food'] -= reward
+    pet['food_earned'] -= reward
+    pet['growth'] = max(0,pet['growth']-1)
+    pet['egg_tasks'] = max(0,pet['egg_tasks']-undo.get('egg_gain',0))
     progress["xp"]=max(0,progress.get("xp",0)-task.get("xp",0))
     if undo["topic_before"] is None:progress.get("topics",{}).pop(key,None)
     else:progress.setdefault("topics",{})[key]=undo["topic_before"]

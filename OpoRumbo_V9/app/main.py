@@ -7,15 +7,17 @@ from typing import Literal
 from datetime import date
 from pathlib import Path
 import json
+from uuid import uuid4
 from .db import init_db,register,login,user_from_token,get_progress,mutate_progress,ProgressConflict
 from .workload import weights, earned_minutes
 from .actions import identify_tasks,complete_task,undo_last_task
+from .pet import companion,care
 from .planner import make_day,record_test,roadmap,_today
 from .researcher import search_catalog,search_boe,inspect_boe
 
 BASE=Path(__file__).resolve().parent
 CATALOG=json.loads((BASE/"catalog.json").read_text(encoding="utf-8"))
-app=FastAPI(title="OpoRumbo",version="19.1")
+app=FastAPI(title="OpoRumbo",version="20.0")
 init_db()
 
 @app.exception_handler(ProgressConflict)
@@ -75,6 +77,17 @@ class CompleteReq(BaseModel):
 class UndoReq(BaseModel):
     revision:int
 
+class ExtraReq(BaseModel):
+    topic_index:int=Field(ge=0)
+    minutes:int=Field(30,ge=30,le=120)
+    request_id:str=Field(min_length=8,max_length=80)
+    revision:int
+
+class CareReq(BaseModel):
+    action:Literal['adopt','hatch','feed','stroke']
+    kind:Literal['auri','nexo','bruma']='auri'
+    revision:int
+
 def require_user(a):
     if not a or not a.lower().startswith("bearer "):raise HTTPException(401,"Falta sesión")
     u=user_from_token(a.split(" ",1)[1])
@@ -90,12 +103,14 @@ def refresh_workload(p):
     o=get_opp_for_progress(p,p.get("selected"))
     if o and p.get("settings"):
         s=p["settings"]
+        planned=sum(t.get("actual_minutes",t.get("minutes",0)) if t.get("done") else t.get("minutes",0) for t in p.get("tasks",[]))
+        p["plan_extra_minutes"]=max(0,round(planned-s.get("minutes_default",180)))
         p["roadmap"]=roadmap(o,p,s.get("exam_date"),s.get("days_per_week",6),s.get("target_rounds",3))
         p["workload_weights"]={"schema":1,"blocks":weights(o)}
         p.setdefault("workload_anchor",{"date":_today().isoformat(),"required_minutes":p["roadmap"]["estimated_minutes_required"],"earned_minutes":earned_minutes(o,p,s.get("target_rounds",3)),"target_rounds":s.get("target_rounds",3),"daily_minutes":s.get("minutes_default",180),"days_per_week":s.get("days_per_week",6)})
 
 @app.get("/api/health")
-def health():return {"ok":True,"version":"19.1"}
+def health():return {"ok":True,"version":"20.0"}
 
 @app.post("/api/register")
 def api_register(x:AuthReq):
@@ -115,7 +130,7 @@ def me(authorization:str|None=Header(None)):return require_user(authorization)
 
 @app.get("/api/progress")
 def progress(authorization:str|None=Header(None)):
-    u=require_user(authorization);p=get_progress(u["id"]);identify_tasks(p);refresh_workload(p);return p
+    u=require_user(authorization);p=get_progress(u["id"]);identify_tasks(p);companion(p);refresh_workload(p);return p
 
 @app.put("/api/progress")
 def save(x:SaveReq,authorization:str|None=Header(None)):
@@ -203,6 +218,7 @@ def finish(task_id:str,x:CompleteReq,authorization:str|None=Header(None)):
         opp=get_opp_for_progress(p,p.get("selected"))
         if not opp:raise HTTPException(404,"Oposición no encontrada")
         complete_task(p,opp,task_id,x.score,x.actual_minutes)
+        refresh_workload(p)
     return mutate_progress(u["id"],change)
 
 @app.post("/api/test/result")
@@ -232,6 +248,7 @@ def undo(task_id:str,x:UndoReq,authorization:str|None=Header(None)):
         opp=get_opp_for_progress(p,p.get("selected"))
         if not opp:raise HTTPException(404,"Oposición no encontrada")
         undo_last_task(p,opp,task_id)
+        refresh_workload(p)
     return mutate_progress(u["id"],change,x.revision)
 
 @app.post("/api/plan/today")
@@ -242,13 +259,12 @@ def today(x:PlanReq,authorization:str|None=Header(None)):
         if not opp or p.get("selected")!=x.opposition_id:raise HTTPException(404,"Oposición no encontrada")
         if any(i<0 or i>=len(opp["topics"]) for i in x.academy_topic_indexes):
             raise HTTPException(422,"Tema de academia no válido")
-        if x.mode=="academy" and not x.academy_topic_indexes:
-            raise HTTPException(422,"Marca los temas de academia que tocan hoy")
         identify_tasks(p)
         today_key=_today().isoformat()
         same_day=p.get("plan_date",today_key)==today_key
         if not same_day:p.pop("last_completion",None)
-        selection={"mode":x.mode,"topics":list(dict.fromkeys(x.academy_topic_indexes))[:2] if x.mode=="academy" else []}
+        indexes=[] if not same_day and not x.replan and x.mode=='academy' else x.academy_topic_indexes
+        selection={"version":2,"mode":x.mode,"topics":list(dict.fromkeys(indexes)) if x.mode=="academy" else []}
         previous=p.get("plan_selection")
         if previous is None:
             # V18/V19 had no plan provenance. Infer academy topics from the actual
@@ -262,28 +278,59 @@ def today(x:PlanReq,authorization:str|None=Header(None)):
             refresh_workload(p)
             return
         completed=[t for t in p.get("tasks",[]) if t.get("done")] if same_day else []
-        p["mode"]=x.mode;p["academy_selected"]=list(dict.fromkeys(x.academy_topic_indexes))
+        extras=[t for t in p.get('tasks',[]) if t.get('extra') and not t.get('done')] if same_day else []
+        p["mode"]=x.mode;p["academy_selected"]=list(dict.fromkeys(indexes))
         old=p.get("settings") or {}
         p["settings"]={"exam_date":x.exam_date.isoformat(),"days_per_week":x.days_per_week,
             "target_rounds":x.target_rounds,"minutes_today":x.minutes,"minutes_default":x.minutes,
             "target_score":x.target_score if x.target_score is not None else old.get("target_score",80)}
         used=sum(t.get("actual_minutes",t.get("minutes",0)) for t in completed)
         remaining=max(0,x.minutes-used)
-        result=make_day(opp,max(30,remaining),p,x.mode,p["academy_selected"],x.exam_date.isoformat(),x.days_per_week,x.target_rounds)
+        result=make_day(opp,remaining,p,x.mode,p["academy_selected"],x.exam_date.isoformat(),x.days_per_week,x.target_rounds,completed_tasks=completed)
         def key(t):
             kind=t.get("kind")
             if kind in ("study","academy","urgent_review","maintenance"):kind="reading"
             return (kind,t.get("topic_index"),t.get("block_index"))
-        done_keys={key(t) for t in completed}
-        fresh=[t for t in result["tasks"] if key(t) not in done_keys] if remaining>=30 else []
-        # A replan cannot erase completed work or grow today's core list forever.
-        p["tasks"]=completed+fresh[:max(0,5-len(completed))]
+        done_keys={key(t) for t in completed+extras}
+        fresh=[t for t in result["tasks"] if key(t) not in done_keys]
+        # Completed history is never a limit on today's explicit academy choices.
+        # Fresh identities reject a stale completion of a replaced/reshaped task.
+        for task in fresh:task["id"]=uuid4().hex
+        p["tasks"]=completed+(fresh if x.mode=="academy" else fresh[:max(0,5-len(completed))])+extras
         p["plan_date"]=today_key
         p["plan_selection"]=selection
         identify_tasks(p)
         p["roadmap"]=result["roadmap"];p["due_reviews"]=result["due_reviews"]
         refresh_workload(p)
     return mutate_progress(u["id"],change,x.revision)
+
+@app.post('/api/tasks/extra')
+def extra_task(x:ExtraReq,authorization:str|None=Header(None)):
+    u=require_user(authorization)
+    def change(p):
+        if p.get('plan_date') != _today().isoformat():
+            raise HTTPException(409,'Organiza primero el plan de hoy.')
+        if any(t.get('request_id')==x.request_id for t in p.get('tasks',[])):
+            return
+        opp=get_opp_for_progress(p,p.get('selected'))
+        if not opp or x.topic_index >= len(opp['topics']):
+            raise HTTPException(422,'Tema no válido')
+        if any(not t.get('done') and t.get('topic_index')==x.topic_index for t in p.get('tasks',[])):
+            raise HTTPException(409,'Ese tema ya tiene tareas pendientes en Hoy. Termínalas antes de añadir otra sesión.')
+        s=p['settings']
+        result=make_day(opp,x.minutes,p,'academy',[x.topic_index],s['exam_date'],s.get('days_per_week',6),s.get('target_rounds',3))
+        # One explicitly requested study/test session; unrelated reviews stay in the base plan.
+        tasks=[t for t in result['tasks'] if t.get('topic_index')==x.topic_index and (t['kind']=='academy' or t.get('source')=='academy')]
+        for t in tasks:
+            t.update(id=uuid4().hex,extra=True,request_id=x.request_id)
+        p.setdefault('tasks',[]).extend(tasks)
+        refresh_workload(p)
+    return mutate_progress(u['id'],change,x.revision)
+
+@app.post('/api/pet/care')
+def pet_care(x:CareReq,authorization:str|None=Header(None)):
+    u=require_user(authorization)
+    return mutate_progress(u['id'],lambda p:care(p,x.action,x.kind),x.revision)
 
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 @app.get("/")
