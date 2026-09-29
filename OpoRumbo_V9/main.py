@@ -16,7 +16,7 @@ from .researcher import search_catalog,search_boe,inspect_boe
 
 BASE=Path(__file__).resolve().parent
 CATALOG=json.loads((BASE/"catalog.json").read_text(encoding="utf-8"))
-app=FastAPI(title="OpoRumbo",version="19.2")
+app=FastAPI(title="OpoRumbo",version="19.3")
 init_db()
 
 @app.exception_handler(ProgressConflict)
@@ -98,7 +98,7 @@ def refresh_workload(p):
         p.setdefault("workload_anchor",{"date":_today().isoformat(),"required_minutes":p["roadmap"]["estimated_minutes_required"],"earned_minutes":earned_minutes(o,p,s.get("target_rounds",3)),"target_rounds":s.get("target_rounds",3),"daily_minutes":s.get("minutes_default",180),"days_per_week":s.get("days_per_week",6)})
 
 @app.get("/api/health")
-def health():return {"ok":True,"version":"19.2"}
+def health():return {"ok":True,"version":"19.3"}
 
 @app.post("/api/register")
 def api_register(x:AuthReq):
@@ -247,8 +247,6 @@ def today(x:PlanReq,authorization:str|None=Header(None)):
         if not opp or p.get("selected")!=x.opposition_id:raise HTTPException(404,"Oposición no encontrada")
         if any(i<0 or i>=len(opp["topics"]) for i in x.academy_topic_indexes):
             raise HTTPException(422,"Tema de academia no válido")
-        if x.mode=="academy" and not x.academy_topic_indexes:
-            raise HTTPException(422,"Marca los temas de academia que tocan hoy")
         identify_tasks(p)
         today_key=_today().isoformat()
         same_day=p.get("plan_date",today_key)==today_key

@@ -179,6 +179,8 @@ def make_day(opposition, minutes, progress, mode="free", academy_topic_indexes=N
     task_limit=max(5,2*len(selected)+1) if selected else 5
     due = _due_reviews(opposition, progress)
     used_blocks = set()
+    if mode=="academy" and not selected:
+        return {"tasks":[],"roadmap":roadmap(opposition,progress,exam_date,days_per_week,target_rounds),"due_reviews":len(due)}
 
     def append(kind, w, base, category, title, fraction=1, cap=None, source=None):
         nonlocal remaining

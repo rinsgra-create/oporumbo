@@ -11,7 +11,7 @@
   <title>
    OpoRumbo · Un paso cada día
   </title>
-  <script defer="" src="/static/app.js?v=19.2">
+  <script defer="" src="/static/app.js?v=19.3">
   </script>
  </head>
  <body>
@@ -217,6 +217,7 @@
       </div>
       <p class="mut" id="todayPace"></p>
       <p class="mut" id="todayAcademy" hidden></p>
+      <p class="mut" id="todayPlanStatus" role="status" aria-live="polite"></p>
       <div aria-live="polite" id="tasks">
       </div>
       <button class="btn" hidden="" id="retry">
@@ -430,10 +431,10 @@
         ¿Qué toca en la academia?
        </h3>
        <p class="mut">
-        Marca todos los temas que quieres incluir hoy y pulsa Aplicar. Se conservarán las tareas terminadas y se avisará si superas el tiempo previsto.
+        Al marcar o desmarcar un tema, Hoy se actualiza automáticamente. Las tareas terminadas se conservan. Si superas el tiempo previsto, verás un aviso.
        </p>
        <p class="mut" id="academySelectionStatus" role="status"></p>
-       <button class="btn secondary" type="submit" data-write>Aplicar temas a Hoy</button>
+       <button class="btn secondary" type="submit" data-write>Guardar ajustes y volver a Hoy</button>
        <div id="academyTopics">
        </div>
       </div>

@@ -6,6 +6,7 @@ let token=['or18','or15','or14','or13','or12','or11','or9'].map(k=>localStorage.
 let state={},opposition=null,user=null,screen='Today',selectedOpp=null,pendingTest=null,pendingTime=null,configuringOpp=false;
 let pending=new Map(),queue=Promise.resolve(),writing=0,petReady=false,audioContext;
 let academyDraft=null;
+let academyEdit=0;
 const names={auri:'Auri',nexo:'Nexo',bruma:'Bruma'};
 const today=()=>new Date().toLocaleDateString('en-CA');
 function notice(message,error=false){$('notice').textContent=message;$('notice').classList.toggle('error',error);$('notice').hidden=!message;}
@@ -155,7 +156,6 @@ function showScreen(name){
 async function plan(replan=false,profile=state){
  const s=profile.settings;
  if(!s.exam_date){showScreen('Profile');notice('Indica la fecha del examen para preparar tu plan.');return;}
- if(profile.mode==='academy'&&!profile.academy_selected?.length){showScreen('Profile');notice('Marca los temas de academia que tocan hoy.');return;}
  state=await api('/api/plan/today',{method:'POST',body:{opposition_id:state.selected,minutes:s.minutes_default||180,mode:profile.mode||'free',academy_topic_indexes:profile.academy_selected||[],exam_date:s.exam_date,days_per_week:s.days_per_week||6,target_rounds:s.target_rounds||3,target_score:s.target_score||80,revision:state._revision??0,replan}});render();return true;
 }
 async function saveSnapshot(patch){
@@ -204,7 +204,17 @@ async function choose(choice){
 }
 document.querySelectorAll('[data-screen]').forEach(b=>b.onclick=()=>showScreen(b.dataset.screen));
 $('authForm').onsubmit=e=>{e.preventDefault();auth('/api/login');};$('signup').onclick=()=>auth('/api/register');
-$('regen').onclick=()=>enqueue(()=>plan(true));
+$('regen').onclick=()=>enqueue(async()=>{
+ $('todayPlanStatus').textContent='Reorganizando tu plan…';$('regen').textContent='Reorganizando…';
+ try{
+  const profile=academyDraft===null?state:{...state,mode:'academy',academy_selected:[...academyDraft]};
+  if(await plan(true,profile)){
+   const count=state.tasks.filter(t=>!t.done).length;
+   $('todayPlanStatus').textContent=count?`Plan actualizado: ${count} tareas pendientes.`:'No quedan tareas pendientes. Marca otro tema en Perfil para añadirlo a Hoy.';
+  }else $('todayPlanStatus').textContent='Revisa la configuración indicada en Perfil.';
+ }catch(error){$('todayPlanStatus').textContent='No se pudo reorganizar. '+error.message;throw error;}
+ finally{$('regen').textContent='Reorganizar lo pendiente';}
+});
 $('undoTask').onclick=()=>enqueue(async()=>{const id=state.last_completion?.id;if(!id)return;state=await api('/api/tasks/'+encodeURIComponent(id)+'/undo',{method:'POST',body:{revision:state._revision??0}});render();notice('Se ha deshecho la última tarea y su recompensa.');});
 $('retry').onclick=()=>{for(const [id,i] of pending)if(i.failed)submitCompletion(id);};
 $('scoreForm').onsubmit=e=>{e.preventDefault();if(!pendingTest||!$('scoreForm').reportValidity())return;const score=Number($('scoreInput').value),p=pendingTest;pendingTest=null;$('scoreOverlay').close();complete(p.id,score,p.rect, $('testMinutes').value?Number($('testMinutes').value):undefined);};
@@ -217,7 +227,30 @@ $('settingsForm').onsubmit=e=>{
  const patch={settings:{...state.settings,exam_date:$('exam').value,minutes_default:+$('minutes').value,minutes_today:+$('minutes').value,days_per_week:+$('daysWeek').value,target_rounds:+$('rounds').value,target_score:+$('targetInput').value},mode:$('studyMode').value,academy_selected:[...document.querySelectorAll('#academyTopics input:checked')].map(x=>+x.value)};
  enqueue(async()=>{if(await plan(true,patch)){academyDraft=null;$('academySelectionStatus').textContent='Selección guardada.';showScreen('Today');notice('Todos los temas seleccionados están aplicados a Hoy. Lo completado se conserva.');}});
 };
-$('academyTopics').onchange=()=>{academyDraft=[...document.querySelectorAll('#academyTopics input:checked')].map(x=>+x.value);$('academySelectionStatus').textContent=`${academyDraft.length} temas seleccionados · cambios sin aplicar. Pulsa «Aplicar temas a Hoy».`;};
+$('academyTopics').onchange=()=>{
+ academyDraft=[...document.querySelectorAll('#academyTopics input:checked')].map(x=>+x.value);
+ const edit=++academyEdit,topics=[...academyDraft];
+ $('academySelectionStatus').textContent='Guardando selección y actualizando Hoy…';
+ $('todayPlanStatus').textContent='Actualizando los temas seleccionados…';
+ enqueue(async()=>{
+  if(edit!==academyEdit)return; // Coalesce clicks waiting behind an in-flight save.
+  try{
+   const applied=await plan(true,{...state,mode:'academy',academy_selected:topics});
+   if(edit!==academyEdit)return;
+   if(applied){
+    academyDraft=null;
+    const message=topics.length?`${topics.length} temas guardados. Ya están en Hoy.`:'Selección guardada. No hay temas de academia pendientes; lo completado se conserva.';
+    $('academySelectionStatus').textContent=message;$('todayPlanStatus').textContent=message;
+   }else{
+    $('academySelectionStatus').textContent='No se ha guardado: completa la configuración de estudio.';
+    $('todayPlanStatus').textContent=$('academySelectionStatus').textContent;
+   }
+  }catch(error){
+   if(edit===academyEdit){$('academySelectionStatus').textContent='No se ha podido guardar. '+error.message;$('todayPlanStatus').textContent=$('academySelectionStatus').textContent;}
+   throw error;
+  }
+ });
+};
 $('studyMode').onchange=()=>{$('academyCard').hidden=$('studyMode').value!=='academy';};
 for(const [id,key] of [['soundSwitch','sound'],['animSwitch','animations']])$(id).onchange=()=>{const value=$(id).checked;state.prefs[key]=value;syncPet();enqueue(()=>saveSnapshot({prefs:{...state.prefs,[key]:value}}));};
 document.querySelectorAll('[data-pet]').forEach(b=>b.onclick=()=>enqueue(()=>saveSnapshot({pet:{...state.pet,type:b.dataset.pet,name:names[b.dataset.pet]}})));
