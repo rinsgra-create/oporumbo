@@ -15,7 +15,7 @@ from .researcher import search_catalog,search_boe,inspect_boe
 
 BASE=Path(__file__).resolve().parent
 CATALOG=json.loads((BASE/"catalog.json").read_text(encoding="utf-8"))
-app=FastAPI(title="OpoRumbo",version="19.0")
+app=FastAPI(title="OpoRumbo",version="19.1")
 init_db()
 
 @app.exception_handler(ProgressConflict)
@@ -60,6 +60,7 @@ class PlanReq(BaseModel):
     target_rounds:int=Field(3,ge=1,le=5)
     revision:int|None=None
     replan:bool=False
+    target_score:int|None=Field(None,ge=50,le=100)
 class TestResultReq(BaseModel):
     opposition_id:str
     topic_index:int
@@ -94,7 +95,7 @@ def refresh_workload(p):
         p.setdefault("workload_anchor",{"date":_today().isoformat(),"required_minutes":p["roadmap"]["estimated_minutes_required"],"earned_minutes":earned_minutes(o,p,s.get("target_rounds",3)),"target_rounds":s.get("target_rounds",3),"daily_minutes":s.get("minutes_default",180),"days_per_week":s.get("days_per_week",6)})
 
 @app.get("/api/health")
-def health():return {"ok":True,"version":"19.0"}
+def health():return {"ok":True,"version":"19.1"}
 
 @app.post("/api/register")
 def api_register(x:AuthReq):
@@ -247,9 +248,17 @@ def today(x:PlanReq,authorization:str|None=Header(None)):
         today_key=_today().isoformat()
         same_day=p.get("plan_date",today_key)==today_key
         if not same_day:p.pop("last_completion",None)
-        # Old deployments did not store the date. Adopt their current tasks once.
-        if same_day and p.get("tasks") and not x.replan:
+        selection={"mode":x.mode,"topics":list(dict.fromkeys(x.academy_topic_indexes))[:2] if x.mode=="academy" else []}
+        previous=p.get("plan_selection")
+        if previous is None:
+            # V18/V19 had no plan provenance. Infer academy topics from the actual
+            # tasks, not the profile, which may already contain a newer selection.
+            academy=list(dict.fromkeys(t.get("topic_index") for t in p.get("tasks",[]) if t.get("kind")=="academy"))
+            previous={"mode":"academy" if academy else p.get("mode","free"),"topics":academy[:2]}
+        # Reuse only a plan built for the current selection, including on reload.
+        if same_day and p.get("tasks") and not x.replan and previous==selection:
             p["plan_date"]=today_key
+            p["plan_selection"]=selection
             refresh_workload(p)
             return
         completed=[t for t in p.get("tasks",[]) if t.get("done")] if same_day else []
@@ -257,16 +266,20 @@ def today(x:PlanReq,authorization:str|None=Header(None)):
         old=p.get("settings") or {}
         p["settings"]={"exam_date":x.exam_date.isoformat(),"days_per_week":x.days_per_week,
             "target_rounds":x.target_rounds,"minutes_today":x.minutes,"minutes_default":x.minutes,
-            "target_score":old.get("target_score",80)}
+            "target_score":x.target_score if x.target_score is not None else old.get("target_score",80)}
         used=sum(t.get("actual_minutes",t.get("minutes",0)) for t in completed)
         remaining=max(0,x.minutes-used)
         result=make_day(opp,max(30,remaining),p,x.mode,p["academy_selected"],x.exam_date.isoformat(),x.days_per_week,x.target_rounds)
-        def key(t):return (t.get("kind"),t.get("topic_index"),t.get("block_index"))
+        def key(t):
+            kind=t.get("kind")
+            if kind in ("study","academy","urgent_review","maintenance"):kind="reading"
+            return (kind,t.get("topic_index"),t.get("block_index"))
         done_keys={key(t) for t in completed}
         fresh=[t for t in result["tasks"] if key(t) not in done_keys] if remaining>=30 else []
         # A replan cannot erase completed work or grow today's core list forever.
         p["tasks"]=completed+fresh[:max(0,5-len(completed))]
         p["plan_date"]=today_key
+        p["plan_selection"]=selection
         identify_tasks(p)
         p["roadmap"]=result["roadmap"];p["due_reviews"]=result["due_reviews"]
         refresh_workload(p)

@@ -63,6 +63,121 @@ def test_stale_device_cannot_overwrite(account):
     r=c.put('/api/progress',json={'data':stale});assert r.status_code==409
     assert c.get('/api/progress').json()['tasks'][0]['done']
 
+
+@pytest.mark.parametrize('replan',[False,True])
+def test_academy_selection_replaces_pending_and_persists(account,replan):
+    c,email,_=account
+    before=plan(c,mode='academy',academy_topic_indexes=[2],replan=True)
+    assert any(t['kind']=='academy' and t['topic_index']==2 for t in before['tasks'])
+    after=plan(c,mode='academy',academy_topic_indexes=[3],replan=replan)
+    assert not any(t.get('topic_index')==2 for t in after['tasks'])
+    assert after['tasks'][0]['kind']=='academy' and after['tasks'][0]['topic_index']==3
+    assert c.get('/api/progress').json()['tasks']==after['tasks']
+    second=TestClient(app)
+    login=second.post('/api/login',json={'email':email,'password':'Local-test-123!'})
+    second.headers['Authorization']='Bearer '+login.json()['token']
+    assert plan(second)['tasks']==after['tasks']
+    stale=c.put('/api/progress',json={'data':before})
+    assert stale.status_code==409
+
+
+def test_academy_saved_selection_repairs_old_day_on_reload(account):
+    c,_,_=account
+    p=plan(c,mode='academy',academy_topic_indexes=[2],replan=True)
+    # Simulate V19's first request succeeding, followed by a lost replan request.
+    p['academy_selected']=[3]
+    assert c.put('/api/progress',json={'data':p}).status_code==200
+    fresh=plan(c)
+    assert fresh['tasks'][0]['topic_index']==3
+    assert not any(t.get('topic_index')==2 for t in fresh['tasks'])
+
+
+def test_academy_legacy_v19_tasks_repaired_without_provenance(account):
+    c,_,_=account
+    p=plan(c,mode='academy',academy_topic_indexes=[2],replan=True)
+    p.pop('plan_selection',None)
+    for t in p['tasks']:t.pop('source',None)
+    p['academy_selected']=[3]
+    save_progress(c.get('/api/me').json()['id'],p)
+    fresh=plan(c)
+    assert fresh['tasks'][0]['topic_index']==3
+    assert all(t.get('topic_index')!=2 for t in fresh['tasks'])
+    assert all(t['source']=='academy' for t in fresh['tasks'] if t.get('topic_index')==3)
+
+
+def test_academy_atomic_profile_conflict_and_validation(account):
+    c,_,_=account
+    p=plan(c,mode='academy',academy_topic_indexes=[2],replan=True)
+    s=p['settings']
+    body={'opposition_id':p['selected'],'minutes':180,'mode':'academy',
+          'academy_topic_indexes':[3],'exam_date':s['exam_date'],'target_score':91,
+          'revision':p['_revision'],'replan':True}
+    task=p['tasks'][0]
+    assert c.post('/api/tasks/'+task['id']+'/complete',json={'actual_minutes':5}).status_code==200
+    assert c.post('/api/plan/today',json=body).status_code==409
+    saved=c.get('/api/progress').json()
+    assert saved['academy_selected']==[2] and saved['settings']==s
+    body['revision']=saved['_revision'];body['academy_topic_indexes']=[99999]
+    assert c.post('/api/plan/today',json=body).status_code==422
+    assert c.get('/api/progress').json()==saved
+    body['academy_topic_indexes']=[3]
+    r=c.post('/api/plan/today',json=body)
+    assert r.status_code==200
+    assert r.json()['settings']['target_score']==91
+    assert any(t['kind']=='academy' and t['topic_index']==3 for t in r.json()['tasks'])
+
+
+def test_academy_completed_reading_not_duplicated_as_due_review(account):
+    c,_,_=account
+    p=plan(c,mode='academy',academy_topic_indexes=[2],minutes=360,replan=True)
+    record_test(p,2,0,40)
+    p['topics']['2']['reviews']['0']['next_review']=_today().isoformat()
+    save_progress(c.get('/api/me').json()['id'],p)
+    task=p['tasks'][0]
+    assert c.post('/api/tasks/'+task['id']+'/complete',json={'actual_minutes':10}).status_code==200
+    fresh=plan(c,academy_topic_indexes=[3],replan=True)
+    old=[t for t in fresh['tasks'] if t.get('topic_index')==2]
+    assert len(old)==1 and old[0]['done'] and old[0]['id']==task['id']
+
+
+def test_academy_completed_and_score_survive_selection_and_undo(account):
+    c,_,_=account
+    p=plan(c,mode='academy',academy_topic_indexes=[2],minutes=360,replan=True)
+    for task in [t for t in p['tasks'] if t.get('topic_index')==2]:
+        body={'actual_minutes':10,**({'score':71} if task['kind']=='test' else {})}
+        r=c.post('/api/tasks/'+task['id']+'/complete',json=body)
+        assert r.status_code==200
+    completed=r.json()
+    fresh=plan(c,academy_topic_indexes=[3],replan=True)
+    for t in completed['tasks']:
+        if t['done']:assert t in fresh['tasks']
+    assert any(t['kind']=='academy' and t['topic_index']==3 for t in fresh['tasks'])
+    assert fresh['topics']==completed['topics']
+    assert fresh['pacing']==completed['pacing']
+    assert fresh['xp']==completed['xp']
+    undone=c.post('/api/tasks/'+task['id']+'/undo',json={'revision':fresh['_revision']})
+    assert undone.status_code==200
+    assert len(undone.json()['pacing']['sessions'])==1
+    replanned=plan(c,replan=True)
+    assert not any(not t['done'] and t.get('topic_index')==2 for t in replanned['tasks'])
+
+
+def test_academy_deselected_due_review_and_no_duplicate(account):
+    c,_,_=account
+    p=plan(c,mode='academy',academy_topic_indexes=[2],minutes=360,replan=True)
+    record_test(p,2,0,40)
+    p['topics']['2']['reviews']['0']['next_review']=_today().isoformat()
+    save_progress(c.get('/api/me').json()['id'],p)
+    fresh=plan(c,academy_topic_indexes=[3],replan=True)
+    old=[t for t in fresh['tasks'] if t.get('topic_index')==2]
+    assert len(old)==1 and old[0]['kind']=='urgent_review'
+    assert 'Repaso' in old[0]['title'] and 'Academia' not in old[0]['title']
+    selected=plan(c,academy_topic_indexes=[2,3],replan=True)
+    assert [t['topic_index'] for t in selected['tasks'] if t['kind']=='academy']==[2,3]
+    assert not any(t['kind']=='urgent_review' and t.get('topic_index')==2 for t in selected['tasks'])
+    keys=[(t['kind'],t.get('topic_index'),t.get('block_index')) for t in selected['tasks']]
+    assert len(keys)==len(set(keys))
+
 def test_validation_and_auth(account):
     c,_,_=account;p=plan(c);task=next(t for t in p['tasks'] if t['kind']=='test');url='/api/tasks/'+task['id']+'/complete'
     assert c.post(url,json={'score':101}).status_code==422

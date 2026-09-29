@@ -147,11 +147,11 @@ function showScreen(name){
  for(const b of document.querySelectorAll('[data-screen]')){b.classList.toggle('active',b.dataset.screen===name);if(b.dataset.screen===name)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');}
  if(name==='Profile')fillSettings();sendPet('visibility',{visible:name==='Today'});
 }
-async function plan(replan=false){
- const s=state.settings;
+async function plan(replan=false,profile=state){
+ const s=profile.settings;
  if(!s.exam_date){showScreen('Profile');notice('Indica la fecha del examen para preparar tu plan.');return;}
- if(state.mode==='academy'&&!state.academy_selected?.length){showScreen('Profile');notice('Marca los temas de academia que tocan hoy.');return;}
- state=await api('/api/plan/today',{method:'POST',body:{opposition_id:state.selected,minutes:s.minutes_default||180,mode:state.mode||'free',academy_topic_indexes:state.academy_selected||[],exam_date:s.exam_date,days_per_week:s.days_per_week||6,target_rounds:s.target_rounds||3,revision:state._revision??0,replan}});render();
+ if(profile.mode==='academy'&&!profile.academy_selected?.length){showScreen('Profile');notice('Marca los temas de academia que tocan hoy.');return;}
+ state=await api('/api/plan/today',{method:'POST',body:{opposition_id:state.selected,minutes:s.minutes_default||180,mode:profile.mode||'free',academy_topic_indexes:profile.academy_selected||[],exam_date:s.exam_date,days_per_week:s.days_per_week||6,target_rounds:s.target_rounds||3,target_score:s.target_score||80,revision:state._revision??0,replan}});render();return true;
 }
 async function saveSnapshot(patch){
  const payload={...state,...patch};const result=await api('/api/progress',{method:'PUT',body:{data:payload}});state=result.progress;render();notice('Cambios guardados.');
@@ -210,7 +210,7 @@ $('cancelScore').onclick=()=>{$('scoreOverlay').close();pendingTest=null;};$('sc
 $('settingsForm').onsubmit=e=>{
  e.preventDefault();if(!$('settingsForm').reportValidity())return;
  const patch={settings:{...state.settings,exam_date:$('exam').value,minutes_default:+$('minutes').value,minutes_today:+$('minutes').value,days_per_week:+$('daysWeek').value,target_rounds:+$('rounds').value,target_score:+$('targetInput').value},mode:$('studyMode').value,academy_selected:[...document.querySelectorAll('#academyTopics input:checked')].map(x=>+x.value)};
- enqueue(async()=>{await saveSnapshot(patch);await plan(true);});
+ enqueue(async()=>{if(await plan(true,patch)){showScreen('Today');notice('Selección aplicada. Hoy está actualizado; lo completado se conserva.');}});
 };
 $('studyMode').onchange=()=>{$('academyCard').hidden=$('studyMode').value!=='academy';};
 for(const [id,key] of [['soundSwitch','sound'],['animSwitch','animations']])$(id).onchange=()=>{const value=$(id).checked;state.prefs[key]=value;syncPet();enqueue(()=>saveSnapshot({prefs:{...state.prefs,[key]:value}}));};

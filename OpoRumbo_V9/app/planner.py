@@ -173,7 +173,7 @@ def make_day(opposition, minutes, progress, mode="free", academy_topic_indexes=N
     due = _due_reviews(opposition, progress)
     used_blocks = set()
 
-    def append(kind, w, base, category, title, fraction=1, cap=None):
+    def append(kind, w, base, category, title, fraction=1, cap=None, source=None):
         nonlocal remaining
         if remaining < 1 or len(tasks) >= 5: return
         predicted = max(1, math.ceil(base*personal[category]["factor"]))
@@ -182,7 +182,7 @@ def make_day(opposition, minutes, progress, mode="free", academy_topic_indexes=N
         task = {"kind":kind, "title":title, "detail":w["label"], "minutes":allocation,
             "baseline_minutes":round(base*share,6), "pace_category":category,
             "coverage":round(fraction*share,6), "xp":100 if kind in ("study","academy","test") else 60,
-            "done":False, "target_score":target}
+            "done":False, "target_score":target, "source":source or kind}
         if "topic_index" in w:
             task.update(topic_index=w["topic_index"], block_index=w["block_index"])
         if share < .999: task["detail"] += f" · aproximadamente {max(1,round(fraction*share*100))}% de esta vuelta"
@@ -202,7 +202,7 @@ def make_day(opposition, minutes, progress, mode="free", academy_topic_indexes=N
         if fraction>0: append(kind,w,base,category,("Academia · " if kind=="academy" else "")+f"Tema {i+1} · "+opposition["topics"][i]["name"],fraction,cap)
         test_fraction=max(0,1-min(1,tested-r))
         if remaining and test_fraction>0:
-            append("test",w,unit(w["weight"],r,"test")*test_fraction,"test","Test del bloque",test_fraction,cap=test_cap if fraction else remaining)
+            append("test",w,unit(w["weight"],r,"test")*test_fraction,"test","Test del bloque",test_fraction,cap=test_cap if fraction else remaining,source=kind)
         used_blocks.add((i,b))
 
     # Academy selection is fixed first; reviews use the remaining daily budget.
