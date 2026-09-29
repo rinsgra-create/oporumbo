@@ -17,7 +17,7 @@ from .researcher import search_catalog,search_boe,inspect_boe
 
 BASE=Path(__file__).resolve().parent
 CATALOG=json.loads((BASE/"catalog.json").read_text(encoding="utf-8"))
-app=FastAPI(title="OpoRumbo",version="21.1")
+app=FastAPI(title="OpoRumbo",version="21.2")
 init_db()
 
 @app.exception_handler(ProgressConflict)
@@ -111,7 +111,7 @@ def refresh_workload(p):
         p.setdefault("workload_anchor",{"date":_today().isoformat(),"required_minutes":p["roadmap"]["estimated_minutes_required"],"earned_minutes":earned_minutes(o,p,s.get("target_rounds",3)),"target_rounds":s.get("target_rounds",3),"daily_minutes":s.get("minutes_default",180),"days_per_week":s.get("days_per_week",6)})
 
 @app.get("/api/health")
-def health():return {"ok":True,"version":"21.1"}
+def health():return {"ok":True,"version":"21.2"}
 
 @app.post("/api/register")
 def api_register(x:AuthReq):

@@ -218,6 +218,23 @@ def estimate(opposition, progress, exam_date, days_per_week, target_rounds, toda
         elapsed = max(0, (today-date.fromisoformat(anchor["date"])).days)
         expected = min(anchor["required_minutes"],elapsed*anchor["daily_minutes"]*anchor["days_per_week"]/7)
         drift = round(earned_minutes(opposition,progress,anchor.get("target_rounds",rounds))-anchor.get("earned_minutes",0)-expected)
+    # A short program index is not a measurement of the user's course material.
+    # This is a sensitivity scenario, not a statistically validated confidence bound.
+    unknown_volume = sum(w["estimate_source"] != "manual" for w in ws)
+    measured_study = sum(personal[k]["sessions"] for k in ("study","english"))
+    measured_review = personal["review"]["sessions"]
+    cautious_required = required * 1.5
+    audit = {
+        "volume_unmeasured_blocks": unknown_volume,
+        "study_sessions": measured_study, "review_sessions": measured_review,
+        "can_confirm_sufficiency": False,
+        "scenario_factor": 1.5,
+        "scenario_required_minutes": math.ceil(cautious_required),
+        "scenario_minutes_per_study_day": need(cautious_required),
+        "scenario_fits": bool(exam and cautious_required <= capacity),
+        "scenario_extra_minutes_daily": max(0,need(cautious_required)-daily) if study_days else None,
+        "round_reading_percentages": [round(f*100) for f in CONFIG["round_factors"][:rounds]],
+    }
     return {"schema": SCHEMA, "days_left": days if exam else None, "study_days_left": study_days,
         "total_blocks": len(ws), "completed_first_blocks": round(first, 2),
         "first_round_pct": round(first/max(1,len(ws))*100), "completed_rounds": math.floor(min(complete, default=0)),
@@ -234,7 +251,7 @@ def estimate(opposition, progress, exam_date, days_per_week, target_rounds, toda
             "third_selective_pct": round(selective*100)},
         "pace": personal, "measured_sessions": measured,
         "estimation_status": "personalized" if any(v["personalized"] for v in personal.values()) else "initial",
-        "blocks": details, "schedule_margin_minutes": drift,
+        "blocks": details, "schedule_margin_minutes": drift, "time_audit": audit,
         "academy": {"active": progress.get("mode") == "academy", "selected_topics": progress.get("academy_selected", [])},
         "target_score": target, "average_test_score": round(sum(scores)/len(scores),1) if scores else None,
         "mastery_index": round(sum(mastery_from_score(progress.get("topics",{}).get(str(i),{}).get("score"),target) for i in range(len(opposition.get("topics",[]))))/max(1,len(opposition.get("topics",[]))),1),

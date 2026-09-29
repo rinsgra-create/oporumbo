@@ -52,15 +52,31 @@ window.addEventListener('message',event=>{
  if(event.data?.type==='pet3dReady'){petReady=true;$('petHero').hidden=true;$('eggFallback').hidden=true;$('threeStatus').textContent='3D activo';normalize();syncPet();sendPet('visibility',{visible:screen==='Today'&&!document.hidden});}
  if(event.data?.type==='pet3dFailed'){petReady=false;renderCare();$('pet3dFrame').style.visibility='hidden';$('threeStatus').textContent='Vista sencilla';console.warn('Compañero 3D:',event.data.reason);}
 });
+let lastSoundAt=-Infinity;
+const soundNotes={reward:[523.25,659.25,783.99],feed:[392,523.25],pet:[293.66,369.99],birth:[392,523.25,659.25,783.99],milestone:[523.25,783.99,1046.5]};
 function sound(kind='reward'){
- if(state.prefs?.sound===false)return;
+ if(state.prefs?.sound===false||document.hidden||performance.now()-lastSoundAt<160)return;
  try{
   audioContext=audioContext||new (window.AudioContext||window.webkitAudioContext)();
-  if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});
-  const now=audioContext.currentTime;
-  (kind==='pet'?[330,440]:[523.25,659.25,783.99]).forEach((f,i)=>{const o=audioContext.createOscillator(),g=audioContext.createGain();o.type='sine';o.frequency.setValueAtTime(f,now+i*.045);if(kind==='pet')o.frequency.exponentialRampToValueAtTime(f*1.3,now+i*.045+.14);o.connect(g);g.connect(audioContext.destination);g.gain.setValueAtTime(0,now+i*.045);g.gain.linearRampToValueAtTime(kind==='pet'?.035:.07,now+i*.045+.008);g.gain.exponentialRampToValueAtTime(.001,now+i*.045+.18);o.start(now+i*.045);o.stop(now+i*.045+.2);o.onended=()=>{o.disconnect();g.disconnect();};});
+  lastSoundAt=performance.now();
+  // Short synthesis only: no downloads, continuous loops or awaited audio on saves.
+  const play=()=>{
+   if(state.prefs?.sound===false||document.hidden||audioContext.state!=='running')return;
+   const now=audioContext.currentTime,notes=soundNotes[kind]||soundNotes.reward;
+   notes.forEach((f,i)=>{
+    const o=audioContext.createOscillator(),g=audioContext.createGain(),start=now+i*.075;
+    o.type='sine';o.frequency.setValueAtTime(f,start);
+    if(kind==='pet')o.frequency.exponentialRampToValueAtTime(f*1.08,start+.22);
+    o.connect(g);g.connect(audioContext.destination);
+    g.gain.setValueAtTime(0,start);g.gain.linearRampToValueAtTime(kind==='pet'?.018:.028,start+.025);
+    g.gain.exponentialRampToValueAtTime(.0001,start+.3);
+    o.onended=()=>{o.disconnect();g.disconnect();};o.start(start);o.stop(start+.32);
+   });
+  };
+  if(audioContext.state==='suspended')audioContext.resume().then(play).catch(()=>{});else play();
  }catch(error){console.warn('Audio no disponible',error.name);}
 }
+
 function celebrate(rect){
  if(state.prefs?.animations===false||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
  const target=$('petStage').getBoundingClientRect(),orb=document.createElement('i');orb.className='energyOrb';document.body.append(orb);
@@ -95,16 +111,20 @@ function render(){
  const r=state.roadmap||{};
  $('mastery').textContent=(r.mastery_index??'—')+'%';$('avg').textContent=r.average_test_score!=null?r.average_test_score+'%':'—';$('daysLeft').textContent=r.days_left??'—';$('studyDays').textContent=r.study_days_left??'—';
  $('firstPct').textContent=(r.first_round_pct||0)+'%';$('firstBar').style.width=(r.first_round_pct||0)+'%';$('dailyNeed').textContent=(r.required_minutes_per_study_day??'—')+' min/día';$('dueReviews').textContent=state.due_reviews||0;
- $('pace').textContent=r.pace_sufficient?'Tu disponibilidad cubre la estimación actual.':'Revisa las alternativas para ajustar tu plan.';
- $('todayPace').textContent=r.pace_sufficient?'Vas bien según la estimación actual.':r.alternatives?.extra_minutes_daily!=null?`El plan necesita unos ${r.alternatives.extra_minutes_daily} min/día más. Ver Plan.`:'Revisa la fecha del examen en Perfil.';
+ $('pace').textContent=r.pace_sufficient?'Tu disponibilidad cubre el cálculo provisional; falta contrastarlo con tu material y tus tiempos.':'Revisa las alternativas para ajustar tu plan.';
+ $('todayPace').textContent=r.pace_sufficient?'El cálculo provisional encaja. Comprueba el tiempo real en Plan.':r.alternatives?.extra_minutes_daily!=null?`El plan necesita unos ${r.alternatives.extra_minutes_daily} min/día más. Ver Plan.`:'Revisa la fecha del examen en Perfil.';
  const hours=n=>Math.round((n||0)/60);
  $('estimateStatus').textContent=(r.estimation_status==='personalized'?'Estimación personalizada en las categorías con datos':'Estimación inicial')+` · ${r.measured_sessions||0} sesiones medidas`;
  $('workloadTotal').textContent=`Unas ${hours(r.initial_minutes)} h para ${r.target_rounds||3} vueltas desde cero · ${hours(r.estimated_minutes_required)} h pendientes con tus repasos actuales`;
  $('planMargin').textContent=`${(r.margin_minutes||0)>=0?'Margen: +':'Déficit: −'}${hours(Math.abs(r.margin_minutes||0))} h`;
- $('possibleRounds').textContent=`A tu ritmo actual: ${r.possible_rounds??'—'} vueltas completas${r.possible_rounds===5?' o más':''}`;
+ $('possibleRounds').textContent=`Según el modelo provisional: ${r.possible_rounds??'—'} vueltas${r.possible_rounds===5?' (límite del cálculo)':''}`;
  $('milestones').innerHTML=Object.entries(r.milestones||{}).slice(0,3).map(([n,d])=>`<div class="topicTop"><span>Fin orientativo · vuelta ${n}</span><b>${esc(d||'Requiere más disponibilidad')}</b></div>`).join('');
  $('simulationBuffer').textContent=`Reserva final: ${r.simulation_buffer_days||0} días de estudio para simulacros (${hours(r.simulation_buffer_minutes)} h), descontada del margen.`;
  $('planAssumptions').textContent=r.uncertainty||'';
+ const audit=r.time_audit;
+ $('timeAudit').textContent=audit?`${audit.volume_unmeasured_blocks} apartados sin volumen real declarado. Tiempos medidos: ${audit.study_sessions} sesiones de estudio y ${audit.review_sessions} de repaso. El modelo reduce la lectura en las vueltas: ${audit.round_reading_percentages.join(' / ')} % de la primera; los tests se calculan aparte. No confirma que puedas dominar el temario en ese tiempo.`:'';
+ $('timeScenario').textContent=audit?`Si el trabajo pendiente necesitara un 50 % más de tiempo: unas ${hours(audit.scenario_required_minutes)} h y ${audit.scenario_minutes_per_study_day??'—'} min por día de estudio. ${r.days_left==null?'Indica la fecha para compararlo con tu disponibilidad.':audit.scenario_fits?'Tu disponibilidad también cubriría ese escenario.':audit.scenario_extra_minutes_daily!=null?'Necesitarías unos '+audit.scenario_extra_minutes_daily+' min diarios adicionales.':'No quedan días de estudio suficientes.'} Es una comparación, no una garantía ni un cambio en tus tareas.`:'';
+
  const a=r.alternatives||{};
  $('planAlternatives').innerHTML=r.pace_sufficient?'':`<h3>Opciones calculadas</h3><p>${a.extra_minutes_daily!=null?`Añadir unos ${a.extra_minutes_daily} min cada día de estudio.`:'No quedan días de estudio estimados antes del examen.'}</p>${a.with_extra_day_minutes_daily!=null?`<p>Con un día más por semana: ${a.with_extra_day_minutes_daily} min/día necesarios. ${a.with_extra_day_sufficient?'Tu tiempo diario actual bastaría.':'También necesitarías ajustar el tiempo diario.'}</p>`:''}${a.third_selective_pct>0?`<p>Dos vueltas completas y aproximadamente ${a.third_selective_pct}% de la tercera, priorizando bloques débiles.</p>`:'<p>Empieza por los bloques débiles; revisa la disponibilidad y el objetivo de vueltas.</p>'}`;
  const drift=r.schedule_margin_minutes;
@@ -133,14 +153,15 @@ function clickTask(id,button){
  pendingTime={id,rect:button.getBoundingClientRect()};$('actualMinutes').value='';$('timeOverlay').showModal();$('actualMinutes').focus();
 }
 function complete(id,score,rect,actual_minutes){
- sound();try{if(rect)celebrate(rect);}catch(error){console.warn('Animación no disponible',error.name);}
+ try{if(state.prefs?.sound!==false){audioContext=audioContext||new (window.AudioContext||window.webkitAudioContext)();if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});}}catch{}
+ try{if(rect)celebrate(rect);}catch(error){console.warn('Animación no disponible',error.name);}
  pending.set(id,{id,score,actual_minutes});rememberPending();render();submitCompletion(id);
 }
 function submitCompletion(id){
  enqueue(async()=>{
   const intent=pending.get(id);if(!intent)return;
   intent.failed=false;render();
-  try{const wasHatched=!!state.pet.hatched,previousStage=stage();state=await api('/api/tasks/'+encodeURIComponent(id)+'/complete',{method:'POST',body:{score:intent.score,actual_minutes:intent.actual_minutes}});pending.delete(id);rememberPending();render();if(!wasHatched&&state.pet.hatched){$('careStatus').textContent='¡Ha nacido '+names[state.pet.type]+'! Objetivo completado.';}else if(stage()>previousStage)sendPet('react',{reaction:'milestone'});notice('Guardado. Un paso más hacia tu objetivo.');}
+  try{const wasHatched=!!state.pet.hatched,previousStage=stage();state=await api('/api/tasks/'+encodeURIComponent(id)+'/complete',{method:'POST',body:{score:intent.score,actual_minutes:intent.actual_minutes}});pending.delete(id);rememberPending();render();sound(!wasHatched&&state.pet.hatched?'birth':stage()>previousStage?'milestone':'reward');if(!wasHatched&&state.pet.hatched){$('careStatus').textContent='¡Ha nacido '+names[state.pet.type]+'! Objetivo completado.';}else if(stage()>previousStage)sendPet('react',{reaction:'milestone'});notice('Guardado. Un paso más hacia tu objetivo.');}
   catch(error){
    if(error.status&&error.status!==401)pending.delete(id);else intent.failed=true;
    rememberPending();render();throw error;
@@ -241,7 +262,7 @@ $('adoptEgg').onclick=()=>$('eggDialog').showModal();
 $('cancelEgg').onclick=()=>$('eggDialog').close();
 document.querySelectorAll('[data-egg]').forEach(b=>b.onclick=()=>enqueue(async()=>{await careAction('adopt',b.dataset.egg);$('eggDialog').close();}));
 $('hatchEgg').onclick=()=>{sound();enqueue(()=>careAction('hatch'));};
-$('feedPet').onclick=()=>{if(!(state.pet.food>0)){$('careStatus').textContent='Completa una tarea extra para ganar comida.';return;}sound();sendPet('react',{reaction:'eat'});enqueue(()=>careAction('feed'));};
+$('feedPet').onclick=()=>{if(!(state.pet.food>0)){$('careStatus').textContent='Completa una tarea extra para ganar comida.';return;}sound('feed');sendPet('react',{reaction:'eat'});enqueue(()=>careAction('feed'));};
 let lastStroke=0,strokeStart=null;
 function stroke(){
  const now=Date.now();if(now-lastStroke<700)return;lastStroke=now;

@@ -11,7 +11,7 @@
   <title>
    OpoRumbo · Un paso cada día
   </title>
-  <script defer="" src="/static/app.js?v=21.1">
+  <script defer="" src="/static/app.js?v=21.2">
   </script>
  <style>.petTouch{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent;cursor:pointer;touch-action:pan-y;z-index:4}.petTouch:focus-visible{outline:3px solid #28785d;border-radius:24px}#eggFallback{position:absolute;inset:0;display:grid;place-items:center;font-size:120px}#eggFallback[hidden]{display:none}.careActions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0}.careActions button{min-height:44px}.careActions .mut{flex-basis:100%}#dayAcademyTopics{max-height:50vh;overflow:auto}dialog{max-width:min(560px,calc(100vw - 32px));box-sizing:border-box}dialog select{width:100%}#eggFallback[data-cracks="1"]::after,#eggFallback[data-cracks="2"]::after{content:"ϟ";position:absolute;color:#665747;font:bold 66px serif;transform:rotate(-15deg)}#eggFallback[data-cracks="2"]::after{content:"ϟϟ"} </style></head>
  <body>
@@ -174,7 +174,7 @@
        <div class="halo">
        </div>
        <img alt="Compañero de estudio" class="petFallback" id="petHero" src="/static/auri.png"/>
-       <iframe class="pet3dFrame" id="pet3dFrame" src="/static/pet3d.html?v=21.1" tabindex="-1" title="Compañero 3D interactivo">
+       <iframe class="pet3dFrame" id="pet3dFrame" src="/static/pet3d.html?v=21.2" tabindex="-1" title="Compañero 3D interactivo">
        </iframe>
        <div id="eggFallback" hidden aria-hidden="true">🥚</div>
        <button id="strokePet" class="petTouch" aria-label="Acariciar a tu compañero" type="button"></button>
@@ -312,7 +312,7 @@
        </b>
       </div>
       <p class="tag" id="estimateStatus"></p>
-      <p id="workloadTotal"></p><h3 id="possibleRounds"></h3><h3 id="planMargin"></h3>
+      <p id="workloadTotal"></p><details><summary>¿Es suficiente el tiempo previsto?</summary><p id="timeAudit"></p><p id="timeScenario"></p><p>Durante tus próximas sesiones registra los minutos reales. Comprueba con tu material cuánto has comprendido y retenido; completar tareas no equivale por sí solo a dominar un tema.</p></details><h3 id="possibleRounds"></h3><h3 id="planMargin"></h3>
       <p id="pace">
       </p>
       <div id="milestones"></div><p class="mut" id="simulationBuffer"></p><p id="planDrift"></p><p id="academyImpact"></p><div id="planAlternatives"></div>
