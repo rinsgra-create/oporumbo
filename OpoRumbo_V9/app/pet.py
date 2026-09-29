@@ -78,13 +78,17 @@ def study_birth(p, task):
     An unfinished first objective can be completed on later study days.
     """
     pet = companion(p)
+    from .collection import activity
+    if task.get('kind') in STUDY_KINDS: activity(p)
     if pet['hatched'] or task.get('kind') not in STUDY_KINDS:
         return
     day = task['completed_on']
     pet['egg_started'] = pet['adopted'] = True
     if not pet['first_study_date']:
         pet['first_study_date'] = day
-    base = [t for t in p.get('tasks', []) if not t.get('extra') and t.get('kind') in STUDY_KINDS]
+    c=p.get('companion_collection')
+    prior=c['pets'][c['active_round']-1].get('prior_task_ids',[]) if c else []
+    base = [t for t in p.get('tasks', []) if t.get('id') not in prior and not t.get('extra') and t.get('kind') in STUDY_KINDS]
     if pet['first_day_goal'] is None or day == pet['first_study_date']:
         pet['first_day_goal'] = max(1, len(base))
     if day == pet['first_study_date']:

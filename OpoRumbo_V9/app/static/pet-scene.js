@@ -1,5 +1,5 @@
 import * as THREE from './vendor/three.module.js';
-import {createCompanion} from './companion-model.js?v=21.3';
+import {createCompanion,phaseSize} from './companion-model.js?v=21.0-collection';
 
 export function start(){
  const notify=(type,extra={})=>parent.postMessage({type,...extra},location.origin);
@@ -19,25 +19,30 @@ export function start(){
  const motion=matchMedia('(prefers-reduced-motion:reduce)');
  let pet=createCompanion('auri',0),kind='auri',mood='neutral',stage=0,eggStage=0,allowAnimation=true,animated=!motion.matches,visible=true,reactionStart=-1,reactionDuration=1000,reactionKind='happy',frame=0,lost=false,disposed=false,initialized=false,hatch=null,pendingReaction=null;
  scene.add(pet.root);
+ let guests=[],guestUntil=0,guestTimer;
+ function clearGuests(){clearTimeout(guestTimer);guests.forEach(g=>{scene.remove(g.container);g.model.dispose();});guests=[];camera.position.set(.3,.8,6.1);camera.lookAt(0,.27,0);pet.root.visible=true;}
  const particles=new THREE.Group(),sparkGeometry=new THREE.SphereGeometry(.035,6,4),sparkMaterial=new THREE.MeshBasicMaterial({color:0xffe8af,transparent:true});
  for(let i=0;i<12;i++)particles.add(new THREE.Mesh(sparkGeometry,sparkMaterial));
  particles.visible=false;scene.add(particles);
  const glowGeometry=new THREE.SphereGeometry(.85,16,12),glowMaterial=new THREE.MeshBasicMaterial({color:0xffedbb,transparent:true,opacity:0,depthWrite:false});
  const glow=new THREE.Mesh(glowGeometry,glowMaterial);glow.position.y=.25;glow.visible=false;scene.add(glow);
+ function fitTeam(){if(!guests.length)return;const box=new THREE.Box3();guests.forEach(g=>box.expandByObject(g.container));const size=box.getSize(new THREE.Vector3());const distance=Math.max(6.1,Math.max(size.x/camera.aspect,size.y)/2/Math.tan(THREE.MathUtils.degToRad(16))*1.18);camera.position.set(0,.8,distance);camera.lookAt(0,.35,0);}
  function beginReaction(nextReaction){reactionKind=['happy','eat','stroke','curious','milestone','ball','bubbles'].includes(nextReaction)?nextReaction:'happy';reactionDuration=['ball','bubbles'].includes(reactionKind)?3200:reactionKind==='eat'?2600:reactionKind==='stroke'?1400:1000;document.documentElement.dataset.reaction=reactionKind;reactionStart=performance.now();schedule();}
- function finishHatch(){if(!hatch)return;scene.remove(hatch.egg.root);hatch.egg.dispose();hatch=null;delete document.documentElement.dataset.transition;pet.root.visible=true;particles.visible=false;glow.visible=false;pet.root.scale.setScalar(.91+stage*.018);if(pendingReaction&&visible&&!document.hidden&&animated)beginReaction(pendingReaction);pendingReaction=null;}
+ function finishHatch(){if(!hatch)return;scene.remove(hatch.egg.root);hatch.egg.dispose();hatch=null;delete document.documentElement.dataset.transition;pet.root.visible=true;particles.visible=false;glow.visible=false;pet.root.scale.setScalar(phaseSize(stage));if(pendingReaction&&visible&&!document.hidden&&animated)beginReaction(pendingReaction);pendingReaction=null;}
  function draw(now=performance.now()){
   frame=0;if(lost||disposed||!visible||document.hidden)return;
   const p=reactionStart<0?0:Math.min(1,(now-reactionStart)/reactionDuration);if(p===1){reactionStart=-1;delete document.documentElement.dataset.reaction;}
   pet.update(now/1000,p,animated,reactionKind,mood);
+  if(guestUntil && now>guestUntil){clearGuests();guestUntil=0;}
+  guests.forEach(g=>g.model.update(now/1000,p,animated,reactionKind,g.mood));
   if(hatch){
    if(!animated)finishHatch();else{
     const h=Math.min(1,(now-hatch.start)/hatch.duration);
     if(hatch.type==='birth')hatch.egg.hatch(h);
-    else{hatch.egg.update(now/1000,0,true,'happy',mood);hatch.egg.root.rotation.y=h*Math.PI*2;hatch.egg.root.scale.setScalar((.91+hatch.previousStage*.018)*Math.max(.05,1-Math.max(0,h-.18)*2.5));hatch.egg.root.visible=h<.6;}
+    else{hatch.egg.update(now/1000,0,true,'happy',mood);hatch.egg.root.rotation.y=h*Math.PI*2;hatch.egg.root.scale.setScalar((phaseSize(hatch.previousStage))*Math.max(.05,1-Math.max(0,h-.18)*2.5));hatch.egg.root.visible=h<.6;}
     glow.visible=true;glowMaterial.opacity=Math.sin(h*Math.PI)*.32;glow.scale.setScalar(.75+Math.sin(h*Math.PI)*.6);
     pet.root.visible=h>.58;
-    if(pet.root.visible)pet.root.scale.setScalar((.91+stage*.018)*Math.min(1,(h-.58)/.22));
+    if(pet.root.visible)pet.root.scale.setScalar((phaseSize(stage))*Math.min(1,(h-.58)/.22));
     particles.visible=h>.42;sparkMaterial.opacity=Math.max(0,1-(h-.42)/.58)*.8;
     particles.children.forEach((spark,i)=>{const a=i*Math.PI*2/12,r=Math.max(0,h-.4)*2.6;spark.position.set(Math.cos(a)*r,Math.sin(a)*r*.7+.3,.5);});
     if(h===1)finishHatch();
@@ -48,17 +53,24 @@ export function start(){
   if(animated)frame=requestAnimationFrame(draw);
  }
  function schedule(){if(!frame&&!lost&&!disposed&&visible&&!document.hidden)frame=requestAnimationFrame(draw);}
- function resize(){const w=Math.max(1,innerWidth),h=Math.max(1,innerHeight);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();schedule();}
+ function resize(){const w=Math.max(1,innerWidth),h=Math.max(1,innerHeight);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();fitTeam();schedule();}
  const observer=new ResizeObserver(resize);observer.observe(document.documentElement);resize();
  function updateMotion(){animated=allowAnimation&&!motion.matches;if(!animated){cancelAnimationFrame(frame);frame=0;reactionStart=-1;finishHatch();}schedule();}
  motion.addEventListener('change',updateMotion);
  addEventListener('message',event=>{
   if(event.source!==parent||event.origin!==location.origin||disposed)return;
   const d=event.data||{};
+  if(d.type==='setTeam'){
+   clearGuests();finishHatch();allowAnimation=d.animations!==false;updateMotion();
+   const members=(Array.isArray(d.pets)?d.pets:[]).slice(0,3);
+   members.forEach((e,i)=>{const model=createCompanion(e.species, e.hatched?Math.max(1,Math.min(8,e.phase-2)):0,e.phase===2?1:0),container=new THREE.Group();container.position.x=(i-(members.length-1)/2)*1.8;container.add(model.root);scene.add(container);guests.push({model,container,mood:e.mood});});
+   pet.root.visible=false;fitTeam();guestUntil=d.temporary?performance.now()+15000:0;if(d.temporary)guestTimer=setTimeout(()=>{clearGuests();schedule();},15000);schedule();
+  }
   if(d.type==='setPet'){
-   mood=['happy','sad','neutral'].includes(d.mood)?d.mood:'neutral';document.documentElement.dataset.mood=mood;
+   if(guests.length)clearGuests();
+   mood=['very_happy','happy','sad','neutral'].includes(d.mood)?d.mood:'neutral';document.documentElement.dataset.mood=mood;
    allowAnimation=d.animations!==false;updateMotion();
-   const nextKind=['auri','nexo','bruma'].includes(d.pet)?d.pet:'auri',nextStage=Math.max(0,Math.min(5,Number(d.stage)||0)),nextEgg=Math.max(0,Math.min(2,Number(d.eggStage)||0));
+   const nextKind=['auri','nexo','bruma'].includes(d.pet)?d.pet:'auri',nextStage=Math.max(0,Math.min(8,Number(d.stage)||0)),nextEgg=Math.max(0,Math.min(2,Number(d.eggStage)||0));
    if(nextKind!==kind||nextStage!==stage||nextEgg!==eggStage){
     finishHatch();const old=pet,previousStage=stage,transitionType=stage===0?'birth':'evolution',shouldHatch=initialized&&nextKind===kind&&nextStage>stage&&animated&&visible&&!document.hidden;
     kind=nextKind;stage=nextStage;eggStage=nextEgg;pet=createCompanion(kind,stage,eggStage);scene.add(pet.root);
@@ -72,7 +84,7 @@ export function start(){
  document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnimationFrame(frame);frame=0;finishHatch();}else schedule();});
  renderer.domElement.addEventListener('webglcontextlost',event=>{event.preventDefault();lost=true;cancelAnimationFrame(frame);frame=0;finishHatch();notify('pet3dFailed',{reason:'Contexto WebGL interrumpido'});});
  renderer.domElement.addEventListener('webglcontextrestored',()=>{lost=false;schedule();notify('pet3dReady');});
- addEventListener('pagehide',event=>{cancelAnimationFrame(frame);frame=0;if(event.persisted)return;disposed=true;observer.disconnect();motion.removeEventListener('change',updateMotion);finishHatch();pet.dispose();sparkGeometry.dispose();sparkMaterial.dispose();glowGeometry.dispose();glowMaterial.dispose();platform.geometry.dispose();platform.material.dispose();shadow.geometry.dispose();shadow.material.map.dispose();shadow.material.dispose();renderer.dispose();});
+ addEventListener('pagehide',event=>{cancelAnimationFrame(frame);frame=0;if(event.persisted)return;disposed=true;observer.disconnect();motion.removeEventListener('change',updateMotion);finishHatch();pet.dispose();clearGuests();sparkGeometry.dispose();sparkMaterial.dispose();glowGeometry.dispose();glowMaterial.dispose();platform.geometry.dispose();platform.material.dispose();shadow.geometry.dispose();shadow.material.map.dispose();shadow.material.dispose();renderer.dispose();});
  addEventListener('pageshow',()=>schedule());
  draw();notify('pet3dReady');
 }

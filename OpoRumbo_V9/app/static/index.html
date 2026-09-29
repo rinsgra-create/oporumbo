@@ -5,14 +5,14 @@
   <meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/>
   <meta content="#f6f7f2" name="theme-color"/>
   <link href="/static/icon.svg" rel="icon" type="image/svg+xml"/>
-  <link href="/static/OpoRumbo-icono.png" rel="apple-touch-icon"/>
+  <link href="/static/auri.png" rel="apple-touch-icon"/>
   <link href="/manifest.webmanifest" rel="manifest"/>
   <link href="/static/styles.css?v=19" rel="stylesheet"/>
   <title>
    OpoRumbo · Un paso cada día
   </title>
-  <script defer src="/static/pet-voice.js?v=21.4"></script>
-  <script defer="" src="/static/app.js?v=21.4">
+  <script defer src="/static/pet-voice.js?v=21.0-collection"></script>
+  <script defer="" src="/static/app.js?v=21.0-collection">
   </script>
  <style>.petTouch{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent;cursor:pointer;touch-action:pan-y;z-index:4}.petTouch:focus-visible{outline:3px solid #28785d;border-radius:24px}#eggFallback{position:absolute;inset:0;display:grid;place-items:center;font-size:120px}#eggFallback[hidden]{display:none}.careActions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0}.careActions button{min-height:44px}.careActions .mut{flex-basis:100%}#dayAcademyTopics{max-height:50vh;overflow:auto}dialog{max-width:min(560px,calc(100vw - 32px));box-sizing:border-box}dialog select{width:100%}#eggFallback[data-cracks="1"]::after,#eggFallback[data-cracks="2"]::after{content:"ϟ";position:absolute;color:#665747;font:bold 66px serif;transform:rotate(-15deg)}#eggFallback[data-cracks="2"]::after{content:"ϟϟ"} </style></head>
  <body>
@@ -159,7 +159,7 @@
        </form>
       </div>
      </section>
-     <section aria-label="Tu compañero de estudio" class="companionHero">
+     <div id="todayCompanionSlot"></div><section aria-label="Tu compañero de estudio" class="companionHero">
       <div class="heroHeading">
        <span class="eyebrow">
         TU COMPAÑERO DE CAMINO
@@ -175,7 +175,7 @@
        <div class="halo">
        </div>
        <img alt="Compañero de estudio" class="petFallback" id="petHero" src="/static/auri.png"/>
-       <iframe class="pet3dFrame" id="pet3dFrame" src="/static/pet3d.html?v=21.4" tabindex="-1" title="Compañero 3D interactivo">
+       <iframe class="pet3dFrame" id="pet3dFrame" src="/static/pet3d.html?v=21.0-collection" tabindex="-1" title="Compañero 3D interactivo">
        </iframe>
        <div id="eggFallback" hidden aria-hidden="true">🥚</div>
        <button id="strokePet" class="petTouch" aria-label="Acariciar a tu compañero" type="button"></button>
@@ -204,7 +204,7 @@
        </div>
       </div>
       <span id="careVisual" aria-hidden="true" style="display:inline-block;font-size:2rem"></span><p id="careStatus" role="status" aria-live="polite"></p>
-      <p id="rewardProgress" class="mut"></p><div id="playControls" hidden><p id="playStock" class="mut"></p><div class="careActions"><button class="btn secondary" id="playBall" data-write>🎾 Jugar con pelota</button><button class="btn secondary" id="playBubbles" data-write>🫧 Jugar con burbujas</button></div></div><p id="petMood" role="status" class="mut"></p><div class="careActions"><button class="btn" id="adoptEgg" data-write>Elegir mi huevo</button><button class="btn" id="hatchEgg" data-write hidden>Abrir el huevo</button><button class="btn secondary" id="feedPet" data-write hidden>Darle de comer</button><span role="status" id="petStats" class="mut"></span></div>
+      <div id="careDetails"><p id="rewardProgress" class="mut"></p><div id="playControls" hidden><p id="playStock" class="mut"></p><div class="careActions"><button class="btn secondary" id="playBall" data-write>🎾 Jugar con pelota</button><button class="btn secondary" id="playBubbles" data-write>🫧 Jugar con burbujas</button></div></div><p id="petMood" role="status" class="mut"></p><div class="careActions"><button class="btn" id="adoptEgg" data-write>Elegir mi huevo</button><button class="btn" id="hatchEgg" data-write hidden>Abrir el huevo</button><button class="btn secondary" id="feedPet" data-write hidden>Darle de comer</button></div></div><span role="status" id="petStats" class="mut"></span>
      </section>
      <section class="card todayCard">
       <div class="dayHead">
@@ -348,52 +348,11 @@
      <span class="eyebrow">
       MEJOR EN COMPAÑÍA
      </span>
-     <h1 class="screenTitle">
-      Elige tu compañero
-     </h1>
-     <p>
-      Un poco de ánimo para cada sesión. Evoluciona contigo a medida que avanzas.
-     </p>
-     <div class="companions">
-      <button class="companion" data-pet="auri" data-write="">
-       <img alt="Auri" src="/static/auri.png"/>
-       <b>
-        Auri
-       </b>
-       <span>
-        Ánimo y motivación
-       </span>
-      </button>
-      <button class="companion" data-pet="nexo" data-write="">
-       <img alt="Nexo" src="/static/nexo.png"/>
-       <b>
-        Nexo
-       </b>
-       <span>
-        Fuerza y constancia
-       </span>
-      </button>
-      <button class="companion" data-pet="bruma" data-write="">
-       <img alt="Bruma" src="/static/bruma.png"/>
-       <b>
-        Bruma
-       </b>
-       <span>
-        Calma y equilibrio
-       </span>
-      </button>
-     </div>
-     <div class="card">
-      <h2>
-       Crecer a tu ritmo
-      </h2>
-      <p>
-       Las tareas aportan experiencia y energía. Tu compañero cambia al subir de nivel y recorrer el temario.
-      </p>
-      <p class="mut">
-       No pierdes tu progreso por descansar.
-      </p>
-     </div>
+     <h1 class="screenTitle">Mi equipo</h1>
+     <p>Tres vueltas, tres compañeros. Cada uno crece con el estudio y conserva su lugar a tu lado.</p>
+     <div id="companionViewSlot"></div><div id="collectionCare" class="card"></div>
+     <div id="teamCards" class="companions"></div>
+     <p class="mut">El crecimiento sigue la carga estudiada y evaluada de cada vuelta. La comida adelanta como máximo 3 puntos porcentuales. Descansar nunca quita fases.</p>
     </section>
     <section hidden="" id="screenProfile">
      <span class="eyebrow">
@@ -557,6 +516,8 @@
   <noscript>
    Necesitas activar JavaScript para usar el plan de estudio.
   </noscript>
- </body>
+ <dialog id="teamDialog"><h2 id="teamTitle"></h2><p id="teamText"></p><div style="height:330px;position:relative"><iframe id="teamFrame" title="Tu equipo 3D" src="/static/pet3d.html?v=21-collection" style="width:100%;height:100%;border:0"></iframe><div id="teamFallback" hidden></div></div><button id="closeTeam" class="btn" data-write>Volver</button></dialog>
+<style>#teamCards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}#teamDialog{width:min(620px,90vw);border:0;border-radius:24px}#teamFallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}#teamFallback[hidden]{display:none}#teamFallback img{width:30%;max-height:230px;object-fit:contain}.teamCard{padding:18px;border-radius:18px;background:#f4f5eb}.teamCard img{width:100%;max-height:140px;object-fit:contain}.teamCard button{margin:4px;max-width:100%}.teamCard small{display:block}.teamLocked{opacity:.65}.companionHero .xpLine,.companionHero .energy,.companionHero .dot{display:none}#petStats{display:block;margin:12px}#careDetails .careActions{flex-wrap:wrap}</style>
+</body>
 </html>
 

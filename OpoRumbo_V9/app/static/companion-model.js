@@ -1,5 +1,7 @@
 import * as THREE from './vendor/three.module.js';
 
+export const PHASE_VARIANTS = [null,null,{size:.58,head:1.20,ears:.4,tail:.3},{size:.67,head:1.12,ears:.65,tail:.5},{size:.76,head:1.03,ears:.85,tail:.7},{size:.85,head:.97,ears:1.05,tail:.9},{size:.92,head:.9,ears:1.2,tail:1.1},{size:1,head:.85,ears:1.35,tail:1.2},{size:1.08,head:.8,ears:1.5,tail:1.35},{size:1.16,head:.76,ears:1.65,tail:1.5}];
+export const phaseSize=stage=>stage===0?1:(PHASE_VARIANTS[stage+1]?.size||.58);
 // Adapter boundary for future GLB assets: return {root, update, dispose}.
 // All current characters are actual lit meshes, never animated photographs.
 export function createCompanion(type='auri',stage=1,eggStage=0){
@@ -63,12 +65,18 @@ export function createCompanion(type='auri',stage=1,eggStage=0){
   for(const side of [-1,1])ellipsoid(head,accent,[side*.23,.36,.4],[.13,.045,.08]).rotation.z=-side*.15;
  }
  if(type==='bruma')for(const side of [-1,1])ellipsoid(body,accent,[side*.49,-.03,-.18],[.28,.4,.16]).rotation.z=-side*.55;
+ const variant=PHASE_VARIANTS[stage+1]||PHASE_VARIANTS[2];
+ head.scale.setScalar(variant.head);head.position.y=.5+(stage*.025);ears.forEach(e=>e.scale.y=variant.ears);tail.scale.setScalar(variant.tail);
+ if(stage===1)ellipsoid(body,cream,[0,-.62,.18],[.65,.20,.5]);
  if(stage>=2)ellipsoid(body,accent,[0,.16,.46],[.09,.12,.055]);
  if(stage>=3){const sprout=ellipsoid(head,accent,[0,.64,-.06],[.1,.24,.085]);sprout.rotation.z=-.3;}
- if(stage>=4)for(const side of [-1,1])ellipsoid(body,accent,[side*.66,.04,-.22],[.17,.42,.12]).rotation.z=-side*.65;
+ if(stage>=5)for(const side of [-1,1])ellipsoid(body,accent,[side*.66,.04,-.22],[.17,.42,.12]).rotation.z=-side*.65;
  let halo;
- if(stage>=5){halo=new THREE.Mesh(new THREE.TorusGeometry(.33,.022,12,48),material(0xe8cb75));halo.position.set(0,1.7,0);halo.rotation.x=Math.PI/2;root.add(halo);}
- const size=.91+Math.min(5,stage)*.018;root.scale.setScalar(size);root.position.y=-.13;
+ if(stage>=8){halo=new THREE.Mesh(new THREE.TorusGeometry(.33,.022,12,48),material(0xe8cb75));halo.position.set(0,1.7,0);halo.rotation.x=Math.PI/2;root.add(halo);}
+ if(stage>=4){const scarf=new THREE.Mesh(new THREE.TorusGeometry(.34,.075,8,24),material(accent));scarf.rotation.x=Math.PI/2;scarf.position.y=.36;body.add(scarf);}
+ if(stage>=6)for(const side of [-1,1])ellipsoid(head,cream,[side*.48,.2,.45],[.1,.16,.04]);
+ if(stage>=7)for(let i=0;i<3;i++)ellipsoid(head,0xe8cb75,[(i-1)*.16,.7,.04],[.07,.19+(i===1?.1:0),.06]);
+ const size=variant.size;root.scale.setScalar(size);root.position.y=-.13;
  const bowl=new THREE.Group();root.add(bowl);
  ellipsoid(bowl,accent,[0,-.78,.77],[.3,.09,.2]);
  for(let i=0;i<3;i++)ellipsoid(bowl,0xd69055,[(i-1)*.12,-.68,.78],[.07,.06,.07]);
@@ -78,8 +86,8 @@ export function createCompanion(type='auri',stage=1,eggStage=0){
  bowl.visible=ball.visible=bubbles.visible=false;
  let nextBlink=2.4,blinkEnd=0;
  return {root,update(t,reaction=0,animate=true,reactionKind='happy',mood='neutral'){
-  const sad=mood==='sad',happy=mood==='happy';mouth.rotation.z=sad?Math.PI:0;mouth.position.y=sad?-.6:0;
-  reaction=animate?reaction:0;const wave=Math.sin(reaction*Math.PI),eat=reactionKind==='eat',stroke=reactionKind==='stroke',curious=reactionKind==='curious',playing=reactionKind==='ball'||reactionKind==='bubbles';
+  const sad=mood==='sad',happy=mood==='happy'||mood==='very_happy';mouth.rotation.z=sad?Math.PI:0;mouth.position.y=sad?-.6:0;
+  if(sad)t*=.55;reaction=animate?reaction:0;const wave=Math.sin(reaction*Math.PI),eat=reactionKind==='eat',stroke=reactionKind==='stroke',curious=reactionKind==='curious',playing=reactionKind==='ball'||reactionKind==='bubbles';
   bowl.visible=eat&&reaction>0;ball.visible=reactionKind==='ball'&&reaction>0;bubbles.visible=reactionKind==='bubbles'&&reaction>0;
   ball.position.set(Math.sin(reaction*Math.PI*4)*.68,-.72+Math.abs(Math.sin(reaction*Math.PI*4))*.32,.62);
   bubbles.children.forEach((b,i)=>{b.position.set(Math.sin(reaction*6+i)*.65,-.5+((reaction+i/3)%1)*2,.7);});
@@ -94,7 +102,7 @@ export function createCompanion(type='auri',stage=1,eggStage=0){
   if(animate&&t>nextBlink){blinkEnd=t+.14;nextBlink=t+1.8+Math.random()*4.8;}
   eyes.forEach(eye=>eye.scale.y=animate&&t<blinkEnd?.09:reaction>0?.55:sad?.7:happy?.85:1);
   const bounce=reaction>0?(playing?Math.abs(Math.sin(reaction*Math.PI*3))*wave:Math.sin(reaction*Math.PI)):0;
-  root.position.y=-.13+bounce*(eat?.06:stroke?.035:curious?.015:reactionKind==='milestone'?.32:.22);root.rotation.z=reaction>0?Math.sin(reaction*Math.PI*2)*.065:0;
+  root.position.y=-.13+(animate&&mood==='very_happy'?Math.max(0,Math.sin(t*.8)-.94)*2:0)+bounce*(eat?.06:stroke?.035:curious?.015:reactionKind==='milestone'?.32:.22);root.rotation.z=reaction>0?Math.sin(reaction*Math.PI*2)*.065:0;
   if(halo)halo.rotation.z=animate?t*.25:0;
  },dispose(){root.traverse(o=>o.geometry?.dispose());materials.forEach(m=>m.dispose());}};
 }

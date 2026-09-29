@@ -44,12 +44,13 @@ function enqueue(job){
 }
 function updateBusy(){document.querySelectorAll('[data-write]').forEach(b=>b.disabled=writing>0);}
 function rememberPending(){if(user)localStorage.setItem('or-pending-'+user.id,JSON.stringify([...pending.values()].map(({id,score,actual_minutes})=>({id,score,actual_minutes}))));}
-function stage(){if(!state.pet?.hatched)return 0;const r=state.roadmap||{},g=state.pet.growth||0;return Math.max(g>=100?5:g>=50?4:g>=20?3:g>=8?2:1,r.completed_rounds>=2?5:r.first_round_pct>=100?4:(r.first_round_pct>=50?3:state.xp>=300?2:1));}
+function activePet(){const c=state.companion_collection;return c?.pets[c.active_round-1];}
+function stage(){return state.pet?.hatched?Math.max(1,(activePet()?.phase||3)-2):0;}
 function sendPet(type,extra={}){try{const f=$('pet3dFrame');if(f?.contentWindow)f.contentWindow.postMessage({type,...extra},location.origin);}catch(error){console.warn('Vista del compañero no disponible',error.name);}}
 function syncPet(){if(typeof state.pet?.hatched!=='boolean')return;if(petReady)$('pet3dFrame').style.visibility='visible';sendPet('setPet',{pet:state.pet.type,stage:stage(),eggStage:state.pet.egg_stage||0,mood:state.companion_rhythm?.mood||'neutral',animations:state.prefs.animations!==false&&!matchMedia('(prefers-reduced-motion: reduce)').matches});}
 window.addEventListener('message',event=>{
  if(event.origin!==location.origin||event.source!==$('pet3dFrame').contentWindow)return;
- if(event.data?.type==='pet3dReady'){petReady=true;$('petHero').hidden=true;$('eggFallback').hidden=true;$('threeStatus').textContent='3D activo';normalize();syncPet();sendPet('visibility',{visible:screen==='Today'&&!document.hidden});}
+ if(event.data?.type==='pet3dReady'){petReady=true;$('petHero').hidden=true;$('eggFallback').hidden=true;$('threeStatus').textContent='3D activo';normalize();syncPet();sendPet('visibility',{visible:['Today','Companion'].includes(screen)&&!document.hidden});}
  if(event.data?.type==='pet3dFailed'){petReady=false;renderCare();$('pet3dFrame').style.visibility='hidden';$('threeStatus').textContent='Vista sencilla';console.warn('Compañero 3D:',event.data.reason);}
 });
 let lastSoundAt=-Infinity;
@@ -89,8 +90,8 @@ function celebrate(rect){
 let lastVisualStage=null;
 function render(){
  normalize();const xp=state.xp||0;
- $('petName').textContent=names[state.pet.type];$('petHero').src='/static/'+state.pet.type+'.png';$('level').textContent='Nivel '+(Math.floor(xp/300)+1);$('energy').textContent=(state.pet.energy??100)+'%';$('xpFill').style.width=(xp%300)/3+'%';syncPet();
- renderCare();
+ $('petName').textContent=names[state.pet.type];$('petHero').src='/static/'+state.pet.type+'.png';$('level').textContent='Vuelta '+(state.companion_collection?.active_round||1);$('energy').textContent=(state.pet.energy??100)+'%';$('xpFill').style.width=(xp%300)/3+'%';syncPet();
+ renderCare();$('collectionCare').append($('careDetails'));$('careDetails').hidden=screen!=='Companion';
  const visualStage=stage();
  if(lastVisualStage!==null&&visualStage>lastVisualStage&&!petReady){
   $('careStatus').textContent=lastVisualStage===0?'¡Tu compañero ha nacido!':'¡Tu compañero ha evolucionado!';
@@ -181,9 +182,11 @@ function fillSettings(){
  $('exam').value=s.exam_date||'';$('minutes').value=s.minutes_default||180;$('daysWeek').value=s.days_per_week||6;$('rounds').value=s.target_rounds||3;$('targetInput').value=s.target_score||80;$('studyMode').value=state.mode||'free';$('academyCard').hidden=$('studyMode').value!=='academy';
 }
 function showScreen(name){
+ const hero=document.querySelector('.companionHero'),slot=$(name==='Companion'?'companionViewSlot':'todayCompanionSlot');if(hero.parentElement!==slot){petReady=false;slot.append(hero);}
  screen=name;for(const n of ['Today','Progress','Syllabus','Companion','Profile'])$('screen'+n).hidden=n!==name;
  for(const b of document.querySelectorAll('[data-screen]')){b.classList.toggle('active',b.dataset.screen===name);if(b.dataset.screen===name)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');}
- if(name==='Profile')fillSettings();sendPet('visibility',{visible:name==='Today'&&!document.hidden});if(name==='Today')sendPet('react',{reaction:'curious'});
+ const details=$('careDetails');$('collectionCare').append(details);details.hidden=name!=='Companion';
+ if(name==='Profile')fillSettings();sendPet('visibility',{visible:['Today','Companion'].includes(name)&&!document.hidden});if(name==='Today')sendPet('react',{reaction:'curious'});
 }
 async function plan(replan=false,profile=state){
  const s=profile.settings;
@@ -260,12 +263,13 @@ function renderCare(){
  $('hatchEgg').textContent=(p.egg_tasks||0)>=3?'Abrir el huevo':'Huevo · '+Math.min(3,p.egg_tasks||0)+'/3 tareas';
  $('feedPet').hidden=!hatched;$('feedPet').textContent='Darle de comer · '+(p.food||0)+(p.food===1?' ración':' raciones');
  $('playControls').hidden=!hatched;$('playStock').textContent=`${p.play_tokens||0} sesiones de juego · ganas una cada 3 tareas`;$('rewardProgress').textContent=`Cada tarea da una ración. Próximo juego: ${3-((p.care_completed||0)%3)} tareas.`;
- $('petStats').textContent=hatched?`Etapa ${stage()}/5 · Crecimiento ${p.growth||0} · Alegría ${p.happiness??50}/100`:(p.egg_stage?'La cáscara se está abriendo. Completa tu objetivo de estudio para conocer a tu compañero.':'Tu primera tarea agrietará el huevo. Al completar el objetivo del primer día, nacerá.');
+ $('petStats').textContent=`Fase ${activePet()?.phase||1}/10 · ${activePet()?.phase_name||'Huevo intacto'} · ${{sad:'Triste',neutral:'Neutro',happy:'Contento',very_happy:'Muy contento'}[mood]}`;
+ renderTeam();
  $('strokePet').setAttribute('aria-label',hatched?'Acariciar a '+names[p.type]:'Acariciar el huevo');
 }
 async function careAction(action,kind){
  state=await api('/api/pet/care',{method:'POST',body:{action,kind:kind||state.pet.type,revision:state._revision??0}});render();
- $('careStatus').textContent=action.startsWith('play_')?'¡Se lo está pasando genial! +8 de alegría.':action==='feed'?'¡Qué rico! +2 de crecimiento y +10 de alegría.':action==='hatch'?'¡Ha nacido '+names[state.pet.type]+'!':action==='adopt'?'Tu huevo te acompaña. Nacerá al completar el objetivo de tu primer día.':'Le encanta que lo acaricies. ♥';
+ $('careStatus').textContent=action.startsWith('play_')?'¡Se lo está pasando genial! +8 de alegría.':action==='feed'?'¡Qué rico! +10 de alegría y un pequeño impulso al estudio.':action==='hatch'?'¡Ha nacido '+names[state.pet.type]+'!':action==='adopt'?'Tu huevo te acompaña. Nacerá al completar el objetivo de tu primer día.':'Le encanta que lo acaricies. ♥';
  const reaction=action==='feed'?'eat':action==='play_ball'?'ball':action==='play_bubbles'?'bubbles':'stroke';
  if(action==='feed'||action.startsWith('play_')){sound(action==='feed'?'feed':'play');$('careVisual').textContent=action==='feed'?'🍎':action==='play_ball'?'🎾':'🫧';if(!petReady&&state.prefs.animations!==false&&!matchMedia('(prefers-reduced-motion: reduce)').matches){try{$('careVisual').animate([{transform:'translateY(0) scale(.8)'},{transform:'translateY(-18px) scale(1.15)'},{transform:'translateY(0) scale(1)'}],{duration:1600,iterations:2});}catch{}}}
  sendPet('react',{reaction});
@@ -370,10 +374,25 @@ $('setupForm').onsubmit=e=>{
 $('changeOpp').onclick=()=>{configuringOpp=true;$('onboarding').hidden=false;showScreen('Today');$('catalogOpp').focus();};
 $('logout').onclick=()=>{if(writing){notice('Espera a que terminen los guardados.');return;}for(const k of ['or18','or15','or14','or13','or12','or11','or9'])localStorage.removeItem(k);location.reload();};
 window.addEventListener('online',()=>{for(const [id,i] of pending)if(i.failed)submitCompletion(id);});
-window.addEventListener('focus',()=>{if(user&&!writing&&!pending.size)enqueue(async()=>{await refreshProgress();await plan(false);});});
+window.addEventListener('focus',()=>{if(user&&!writing&&!pending.size&&!$('teamDialog').open)enqueue(async()=>{await refreshProgress();await plan(false);});});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'}).catch(error=>console.warn('PWA:',error.name));
 setTimeout(()=>{if(!petReady)$('threeStatus').textContent='Vista sencilla';},8000);
 boot();
 
 matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',()=>syncPet());
-document.addEventListener('visibilitychange',()=>sendPet('visibility',{visible:screen==='Today'&&!document.hidden}));
+document.addEventListener('visibilitychange',()=>sendPet('visibility',{visible:['Today','Companion'].includes(screen)&&!document.hidden}));
+
+let teamMembers=[],teamCelebration=false,celebrationShown=false,teamVisitTimer;
+function renderTeam(){
+ const c=state.companion_collection;if(!c)return;
+ $('teamCards').innerHTML=c.pets.map(e=>`<article class="teamCard ${e.unlocked?'':'teamLocked'}"><img src="/static/${esc(e.species)}.png" alt="${esc(names[e.species])}"><h2>${esc(names[e.species])}</h2><small>Vuelta ${e.round} · ${e.unlocked?'Desbloqueado':'Bloqueado'}</small><p>${e.hatched?'Nació en la vuelta '+e.round:'Huevo de la vuelta '+e.round}</p><p>Fase ${e.phase}/10 · ${esc(e.phase_name)}</p><small>${e.completed_at?'Forma final lograda':Math.round(e.progress*100)+'% de estudio'}</small>${e.unlocked?`<button class="btn secondary" data-view-round="${e.round}">Ver</button>${e.hatched?`<button class="btn secondary" data-call-round="${e.round}">Llamar</button><button class="btn secondary" data-play-round="${e.round}" data-write>Jugar</button>`:''}`:''}</article>`).join('');
+ let growth=$('collectionGrowth');if(!growth){growth=document.createElement('p');growth.id='collectionGrowth';$('collectionCare').prepend(growth);}
+ const e=activePet();growth.textContent=`Vuelta ${c.active_round}: ${Math.round(e.progress*100)}% de crecimiento académico · Alegría ${e.happiness}/100 · Comida ${state.pet.food||0}`;
+ if(c.complete&&!c.final_celebration_seen&&!celebrationShown){celebrationShown=true;setTimeout(()=>openTeam(c.pets,true),0);}
+}
+function syncTeam(){const f=$('teamFrame');f.contentWindow?.postMessage({type:'setTeam',pets:teamMembers,animations:state.prefs?.animations!==false},location.origin);f.contentWindow?.postMessage({type:'visibility',visible:$('teamDialog').open&&!document.hidden},location.origin);}
+function openTeam(members,celebration=false){clearTimeout(teamVisitTimer);teamMembers=members;teamCelebration=celebration;$('teamTitle').textContent=celebration?'¡Has formado tu equipo de estudio!':members.map(e=>names[e.species]).join(' y ');$('teamText').textContent=celebration?'Tres vueltas completadas. Auri, Bruma y Nexo celebran tu constancia contigo.':'Tu equipo siempre tiene un lugar a tu lado.';$('teamFallback').innerHTML=members.map(e=>e.hatched?`<img src="/static/${esc(e.species)}.png" alt="${esc(names[e.species])}, fase ${e.phase}">`:'<span style="font-size:5rem">🥚</span>').join('');if(!$('teamDialog').open)$('teamDialog').showModal();syncTeam();if(celebration){sound('milestone');$('teamFrame').contentWindow?.postMessage({type:'react',reaction:'milestone'},location.origin);}}
+window.addEventListener('message',event=>{if(event.origin!==location.origin||event.source!==$('teamFrame').contentWindow)return;if(event.data?.type==='pet3dReady'){syncTeam();$('teamFallback').hidden=true;}if(event.data?.type==='pet3dFailed')$('teamFallback').hidden=false;});
+$('teamCards').onclick=e=>{const b=e.target.closest('button');if(!b)return;const c=state.companion_collection;const r=+(b.dataset.viewRound||b.dataset.callRound||b.dataset.playRound),pet=c.pets[r-1];if(b.dataset.playRound)enqueue(async()=>{state=await api('/api/pet/care',{method:'POST',body:{action:'team_play',round:r,revision:state._revision}});render();openTeam([state.companion_collection.pets[r-1]]);sound('play');$('teamFrame').contentWindow.postMessage({type:'react',reaction:'ball'},location.origin);});else if(b.dataset.callRound){openTeam(r===c.active_round?[pet]:[activePet(),pet]);$('teamText').textContent=names[pet.species]+' viene a jugar contigo durante unos instantes.';teamVisitTimer=setTimeout(()=>{if(!teamCelebration){$('teamDialog').close();syncTeam();}},15000);}else openTeam([pet]);};
+async function closeTeam(){clearTimeout(teamVisitTimer);if(teamCelebration){state=await api('/api/pet/care',{method:'POST',body:{action:'celebration_seen',revision:state._revision}});teamCelebration=false;}$('teamDialog').close();syncTeam();render();}
+$('closeTeam').onclick=()=>enqueue(closeTeam);$('teamDialog').addEventListener('cancel',e=>{e.preventDefault();enqueue(closeTeam);});
