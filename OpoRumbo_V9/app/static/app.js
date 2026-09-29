@@ -46,14 +46,14 @@ function updateBusy(){document.querySelectorAll('[data-write]').forEach(b=>b.dis
 function rememberPending(){if(user)localStorage.setItem('or-pending-'+user.id,JSON.stringify([...pending.values()].map(({id,score,actual_minutes})=>({id,score,actual_minutes}))));}
 function stage(){if(!state.pet?.hatched)return 0;const r=state.roadmap||{},g=state.pet.growth||0;return Math.max(g>=100?5:g>=50?4:g>=20?3:g>=8?2:1,r.completed_rounds>=2?5:r.first_round_pct>=100?4:(r.first_round_pct>=50?3:state.xp>=300?2:1));}
 function sendPet(type,extra={}){try{const f=$('pet3dFrame');if(f?.contentWindow)f.contentWindow.postMessage({type,...extra},location.origin);}catch(error){console.warn('Vista del compañero no disponible',error.name);}}
-function syncPet(){if(typeof state.pet?.hatched!=='boolean')return;if(petReady)$('pet3dFrame').style.visibility='visible';sendPet('setPet',{pet:state.pet.type,stage:stage(),eggStage:state.pet.egg_stage||0,animations:state.prefs.animations!==false&&!matchMedia('(prefers-reduced-motion: reduce)').matches});}
+function syncPet(){if(typeof state.pet?.hatched!=='boolean')return;if(petReady)$('pet3dFrame').style.visibility='visible';sendPet('setPet',{pet:state.pet.type,stage:stage(),eggStage:state.pet.egg_stage||0,mood:state.companion_rhythm?.mood||'neutral',animations:state.prefs.animations!==false&&!matchMedia('(prefers-reduced-motion: reduce)').matches});}
 window.addEventListener('message',event=>{
  if(event.origin!==location.origin||event.source!==$('pet3dFrame').contentWindow)return;
  if(event.data?.type==='pet3dReady'){petReady=true;$('petHero').hidden=true;$('eggFallback').hidden=true;$('threeStatus').textContent='3D activo';normalize();syncPet();sendPet('visibility',{visible:screen==='Today'&&!document.hidden});}
  if(event.data?.type==='pet3dFailed'){petReady=false;renderCare();$('pet3dFrame').style.visibility='hidden';$('threeStatus').textContent='Vista sencilla';console.warn('Compañero 3D:',event.data.reason);}
 });
 let lastSoundAt=-Infinity;
-const soundNotes={reward:[523.25,659.25,783.99],feed:[392,523.25],pet:[293.66,369.99],birth:[392,523.25,659.25,783.99],milestone:[523.25,783.99,1046.5]};
+const soundNotes={reward:[523.25,659.25,783.99],feed:[220,277.18,329.63],play:[392,493.88,587.33],pet:[240,310,260],birth:[392,523.25,659.25,783.99],milestone:[523.25,783.99,1046.5]};
 function sound(kind='reward'){
  if(state.prefs?.sound===false||document.hidden||performance.now()-lastSoundAt<160)return;
  try{
@@ -62,11 +62,11 @@ function sound(kind='reward'){
   // Short synthesis only: no downloads, continuous loops or awaited audio on saves.
   const play=()=>{
    if(state.prefs?.sound===false||document.hidden||audioContext.state!=='running')return;
-   const now=audioContext.currentTime,notes=soundNotes[kind]||soundNotes.reward;
+   const now=audioContext.currentTime,voice={auri:1,nexo:.78,bruma:1.18}[state.pet?.type]||1,notes=(soundNotes[kind]||soundNotes.reward).map(f=>f*(kind==='pet'?voice:1));
    notes.forEach((f,i)=>{
-    const o=audioContext.createOscillator(),g=audioContext.createGain(),start=now+i*.075;
+    const o=audioContext.createOscillator(),g=audioContext.createGain(),start=now+i*(kind==='pet'?.14:.075);
     o.type='sine';o.frequency.setValueAtTime(f,start);
-    if(kind==='pet')o.frequency.exponentialRampToValueAtTime(f*1.08,start+.22);
+    if(kind==='pet'){o.frequency.exponentialRampToValueAtTime(f*1.38,start+.075);o.frequency.exponentialRampToValueAtTime(f*.86,start+.22);}
     o.connect(g);g.connect(audioContext.destination);
     g.gain.setValueAtTime(0,start);g.gain.linearRampToValueAtTime(kind==='pet'?.018:.028,start+.025);
     g.gain.exponentialRampToValueAtTime(.0001,start+.3);
@@ -85,10 +85,17 @@ function celebrate(rect){
  const animation=orb.animate([{transform:'translate(-50%,-50%) scale(.7)',opacity:1},{transform:`translate(${dx*.55}px,${dy*.55-65}px) scale(1.15)`,opacity:1},{transform:`translate(${dx}px,${dy}px) scale(.2)`,opacity:0}],{duration:650,easing:'ease-in-out'});
  animation.onfinish=()=>{orb.remove();if(petReady)sendPet('react',{reaction:'happy'});};
 }
+let lastVisualStage=null;
 function render(){
  normalize();const xp=state.xp||0;
  $('petName').textContent=names[state.pet.type];$('petHero').src='/static/'+state.pet.type+'.png';$('level').textContent='Nivel '+(Math.floor(xp/300)+1);$('energy').textContent=(state.pet.energy??100)+'%';$('xpFill').style.width=(xp%300)/3+'%';syncPet();
  renderCare();
+ const visualStage=stage();
+ if(lastVisualStage!==null&&visualStage>lastVisualStage&&!petReady){
+  $('careStatus').textContent=lastVisualStage===0?'¡Tu compañero ha nacido!':'¡Tu compañero ha evolucionado!';
+  if(state.prefs.animations!==false&&!matchMedia('(prefers-reduced-motion: reduce)').matches){try{$('petHero').animate([{transform:'scale(.75)',opacity:.3},{transform:'scale(1.08)',opacity:1},{transform:'scale(1)',opacity:1}],{duration:2600,easing:'ease-in-out'});}catch{}}
+ }
+ lastVisualStage=visualStage;
  document.documentElement.classList.toggle('reduce-motion',!state.prefs.animations);
  $('date').textContent=new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'short'});
  const tasks=state.tasks,done=tasks.filter(t=>t.done||pending.has(t.id)).length,total=tasks.length;
@@ -244,25 +251,31 @@ $('authForm').onsubmit=e=>{e.preventDefault();auth('/api/login');};$('signup').o
 
 function renderCare(){
  const p=state.pet||{},hatched=!!p.hatched;
+ const mood=state.companion_rhythm?.mood||'neutral';$('petMood').textContent=state.companion_rhythm?.message||'Tu compañero te acompaña a tu ritmo.';$('petMood').dataset.mood=mood;$('petHero').style.filter=mood==='sad'?'saturate(.7)':'';
  $('petName').textContent=hatched?names[p.type]:'Huevo de '+names[p.type||'auri'];
  $('petHero').hidden=petReady||!hatched;$('eggFallback').hidden=petReady||hatched;
  $('adoptEgg').hidden=!!p.egg_started||hatched;$('hatchEgg').hidden=true;
  $('eggFallback').dataset.cracks=p.egg_stage||0;
  $('hatchEgg').textContent=(p.egg_tasks||0)>=3?'Abrir el huevo':'Huevo · '+Math.min(3,p.egg_tasks||0)+'/3 tareas';
  $('feedPet').hidden=!hatched;$('feedPet').textContent='Darle de comer · '+(p.food||0)+(p.food===1?' ración':' raciones');
+ $('playControls').hidden=!hatched;$('playStock').textContent=`${p.play_tokens||0} sesiones de juego · ganas una cada 3 tareas`;$('rewardProgress').textContent=`Cada tarea da una ración. Próximo juego: ${3-((p.care_completed||0)%3)} tareas.`;
  $('petStats').textContent=hatched?`Etapa ${stage()}/5 · Crecimiento ${p.growth||0} · Alegría ${p.happiness??50}/100`:(p.egg_stage?'La cáscara se está abriendo. Completa tu objetivo de estudio para conocer a tu compañero.':'Tu primera tarea agrietará el huevo. Al completar el objetivo del primer día, nacerá.');
  $('strokePet').setAttribute('aria-label',hatched?'Acariciar a '+names[p.type]:'Acariciar el huevo');
 }
 async function careAction(action,kind){
  state=await api('/api/pet/care',{method:'POST',body:{action,kind:kind||state.pet.type,revision:state._revision??0}});render();
- $('careStatus').textContent=action==='feed'?'¡Qué rico! +2 de crecimiento y +10 de alegría.':action==='hatch'?'¡Ha nacido '+names[state.pet.type]+'!':action==='adopt'?'Tu huevo te acompaña. Nacerá al completar el objetivo de tu primer día.':'Le encanta que lo acaricies. ♥';
- sendPet('react',{reaction:action==='feed'?'eat':'stroke'});
+ $('careStatus').textContent=action.startsWith('play_')?'¡Se lo está pasando genial! +8 de alegría.':action==='feed'?'¡Qué rico! +2 de crecimiento y +10 de alegría.':action==='hatch'?'¡Ha nacido '+names[state.pet.type]+'!':action==='adopt'?'Tu huevo te acompaña. Nacerá al completar el objetivo de tu primer día.':'Le encanta que lo acaricies. ♥';
+ const reaction=action==='feed'?'eat':action==='play_ball'?'ball':action==='play_bubbles'?'bubbles':'stroke';
+ if(action==='feed'||action.startsWith('play_')){sound(action==='feed'?'feed':'play');$('careVisual').textContent=action==='feed'?'🍎':action==='play_ball'?'🎾':'🫧';if(!petReady&&state.prefs.animations!==false&&!matchMedia('(prefers-reduced-motion: reduce)').matches){try{$('careVisual').animate([{transform:'translateY(0) scale(.8)'},{transform:'translateY(-18px) scale(1.15)'},{transform:'translateY(0) scale(1)'}],{duration:1600,iterations:2});}catch{}}}
+ sendPet('react',{reaction});
 }
 $('adoptEgg').onclick=()=>$('eggDialog').showModal();
 $('cancelEgg').onclick=()=>$('eggDialog').close();
 document.querySelectorAll('[data-egg]').forEach(b=>b.onclick=()=>enqueue(async()=>{await careAction('adopt',b.dataset.egg);$('eggDialog').close();}));
 $('hatchEgg').onclick=()=>{sound();enqueue(()=>careAction('hatch'));};
-$('feedPet').onclick=()=>{if(!(state.pet.food>0)){$('careStatus').textContent='Completa una tarea extra para ganar comida.';return;}sound('feed');sendPet('react',{reaction:'eat'});enqueue(()=>careAction('feed'));};
+$('feedPet').onclick=()=>{if(!(state.pet.food>0)){$('careStatus').textContent='Completa una tarea para ganar comida.';return;}unlockCareAudio();enqueue(()=>careAction('feed'));};
+function unlockCareAudio(){try{audioContext=audioContext||new (window.AudioContext||window.webkitAudioContext)();if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});}catch{}}
+for(const [id,action] of [['playBall','play_ball'],['playBubbles','play_bubbles']])$(id).onclick=()=>{if(!(state.pet.play_tokens>0)){$('careStatus').textContent='Completa tres tareas para ganar una sesión de juego.';return;}unlockCareAudio();enqueue(()=>careAction(action));};
 let lastStroke=0,strokeStart=null;
 function stroke(){
  const now=Date.now();if(now-lastStroke<700)return;lastStroke=now;

@@ -11,7 +11,7 @@
   <title>
    OpoRumbo · Un paso cada día
   </title>
-  <script defer="" src="/static/app.js?v=21.2">
+  <script defer="" src="/static/app.js?v=21.3">
   </script>
  <style>.petTouch{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent;cursor:pointer;touch-action:pan-y;z-index:4}.petTouch:focus-visible{outline:3px solid #28785d;border-radius:24px}#eggFallback{position:absolute;inset:0;display:grid;place-items:center;font-size:120px}#eggFallback[hidden]{display:none}.careActions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0}.careActions button{min-height:44px}.careActions .mut{flex-basis:100%}#dayAcademyTopics{max-height:50vh;overflow:auto}dialog{max-width:min(560px,calc(100vw - 32px));box-sizing:border-box}dialog select{width:100%}#eggFallback[data-cracks="1"]::after,#eggFallback[data-cracks="2"]::after{content:"ϟ";position:absolute;color:#665747;font:bold 66px serif;transform:rotate(-15deg)}#eggFallback[data-cracks="2"]::after{content:"ϟϟ"} </style></head>
  <body>
@@ -174,7 +174,7 @@
        <div class="halo">
        </div>
        <img alt="Compañero de estudio" class="petFallback" id="petHero" src="/static/auri.png"/>
-       <iframe class="pet3dFrame" id="pet3dFrame" src="/static/pet3d.html?v=21.2" tabindex="-1" title="Compañero 3D interactivo">
+       <iframe class="pet3dFrame" id="pet3dFrame" src="/static/pet3d.html?v=21.3" tabindex="-1" title="Compañero 3D interactivo">
        </iframe>
        <div id="eggFallback" hidden aria-hidden="true">🥚</div>
        <button id="strokePet" class="petTouch" aria-label="Acariciar a tu compañero" type="button"></button>
@@ -202,8 +202,8 @@
         </div>
        </div>
       </div>
-      <p id="careStatus" role="status" aria-live="polite"></p>
-      <div class="careActions"><button class="btn" id="adoptEgg" data-write>Elegir mi huevo</button><button class="btn" id="hatchEgg" data-write hidden>Abrir el huevo</button><button class="btn secondary" id="feedPet" data-write hidden>Darle de comer</button><span role="status" id="petStats" class="mut"></span></div>
+      <span id="careVisual" aria-hidden="true" style="display:inline-block;font-size:2rem"></span><p id="careStatus" role="status" aria-live="polite"></p>
+      <p id="rewardProgress" class="mut"></p><div id="playControls" hidden><p id="playStock" class="mut"></p><div class="careActions"><button class="btn secondary" id="playBall" data-write>🎾 Jugar con pelota</button><button class="btn secondary" id="playBubbles" data-write>🫧 Jugar con burbujas</button></div></div><p id="petMood" role="status" class="mut"></p><div class="careActions"><button class="btn" id="adoptEgg" data-write>Elegir mi huevo</button><button class="btn" id="hatchEgg" data-write hidden>Abrir el huevo</button><button class="btn secondary" id="feedPet" data-write hidden>Darle de comer</button><span role="status" id="petStats" class="mut"></span></div>
      </section>
      <section class="card todayCard">
       <div class="dayHead">
@@ -306,7 +306,7 @@
       </div>
       <div class="topicTop">
        <span>
-        Ritmo necesario
+        Ritmo orientativo
        </span>
        <b id="dailyNeed">
        </b>
@@ -558,3 +558,4 @@
   </noscript>
  </body>
 </html>
+

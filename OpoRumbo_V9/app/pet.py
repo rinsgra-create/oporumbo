@@ -5,6 +5,46 @@ from datetime import datetime, timezone
 STUDY_KINDS = {'study', 'academy', 'test', 'maintenance', 'urgent_review', 'english', 'psy'}
 
 
+def update_rhythm(p, opposition, today):
+    """Compare earned study work, not XP or speed of clicking, with availability.
+
+    No specific weekdays are stored: allow all configured weekly rest days first.
+    Start a fresh comparison after availability/opposition changes, without
+    changing any earned care rewards. The derived result is recomputed server-side.
+    """
+    from .workload import earned_minutes
+    settings=p.get('settings',{})
+    daily=max(1,int(settings.get('minutes_default',180)))
+    week=max(1,min(7,int(settings.get('days_per_week',6))))
+    rounds=settings.get('target_rounds',3)
+    signature=[opposition.get('id'),daily,week,rounds,settings.get('exam_date')]
+    earned=earned_minutes(opposition,p,rounds)
+    anchor=p.get('rhythm_anchor')
+    if not anchor or anchor.get('signature')!=signature:
+        anchor={'signature':signature,'date':today.isoformat(),'earned_minutes':earned}
+        p['rhythm_anchor']=anchor
+    from datetime import date
+    elapsed=max(0,(today-date.fromisoformat(anchor['date'])).days)
+    weeks,remainder=divmod(elapsed,7)
+    expected_days=weeks*week+max(0,remainder-(7-week))
+    expected=expected_days*daily
+    gained=max(0,earned-anchor['earned_minutes'])
+    delta=gained-expected
+    if not companion(p)['hatched']:
+        mood='neutral';message='Tu compañero te espera dentro del huevo.'
+    elif p.get('roadmap',{}).get('completed_rounds',0)>=rounds:
+        mood='happy';message='¡Objetivo de vueltas completado! Mantén los repasos que correspondan.'
+    elif delta>=daily*.5:
+        mood='happy';message='¡Va contento! Llevas avance por delante de tu ritmo previsto.'
+    elif elapsed>=7 and delta<=-daily:
+        mood='sad';message='Está algo decaído: queda avance pendiente respecto al plan. Retoma una tarea o ajusta tu disponibilidad.'
+    else:
+        mood='neutral';message='Te acompaña con calma. Los descansos previstos también forman parte del plan.'
+    p['companion_rhythm']={'mood':mood,'message':message,'as_of':today.isoformat(),
+        'earned_minutes':round(gained),'expected_minutes':expected,'difference_minutes':round(delta),
+        'weekly_rest_days':7-week,'initial_week':elapsed<7}
+
+
 def companion(p):
     pet = p.setdefault('pet', {})
     pet.setdefault('type', 'auri')
@@ -19,6 +59,10 @@ def companion(p):
     pet.setdefault('food_earned', 0)
     pet.setdefault('food_spent', 0)
     pet.setdefault('happiness', 50)
+    pet.setdefault('play_tokens', 0)
+    pet.setdefault('play_earned', 0)
+    pet.setdefault('play_spent', 0)
+    pet.setdefault('care_completed', 0)
     pet.setdefault('egg_stage', 2 if pet['hatched'] else min(2, int(pet['egg_tasks'])))
     pet.setdefault('first_study_date', None)
     pet.setdefault('hatched_at', None)
@@ -71,6 +115,12 @@ def care(p, action, kind=None):
         pet['energy'] = min(100, pet['energy'] + 10)
     elif action == 'stroke':
         pet['happiness'] = min(100, pet['happiness'] + 1)
+    elif action in ('play_ball','play_bubbles'):
+        if not pet['hatched'] or pet['play_tokens'] < 1:
+            raise HTTPException(422,'Completa tres tareas para ganar una sesión de juego y espera a que nazca tu compañero.')
+        pet['play_tokens'] -= 1
+        pet['play_spent'] += 1
+        pet['happiness'] = min(100,pet['happiness']+8)
 
 
 def upgrade_birth(p):

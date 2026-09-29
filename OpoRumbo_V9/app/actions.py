@@ -73,10 +73,15 @@ def complete_task(progress, opposition, task_id, score=None, actual_minutes=None
     undo['egg_gain']=int(not pet['hatched'] and kind in STUDY_KINDS)
     pet['egg_tasks'] += undo['egg_gain']
     study_birth(progress, task)
-    if task.get('extra'):
+    if kind in STUDY_KINDS:
         pet['food'] += 1
         pet['food_earned'] += 1
         task['food_reward'] = 1
+        pet['care_completed'] += 1
+        task['care_reward_counted'] = True
+        task['play_reward'] = int(pet['care_completed'] % 3 == 0)
+        pet['play_tokens'] += task['play_reward']
+        pet['play_earned'] += task['play_reward']
     settings = progress.get("settings", {})
     progress["roadmap"] = roadmap(opposition, progress, settings.get("exam_date"), settings.get("days_per_week", 6), settings.get("target_rounds", 3))
     progress["due_reviews"] = len(_due_reviews(opposition, progress))
@@ -98,8 +103,14 @@ def undo_last_task(progress, opposition, task_id):
     reward=task.get('food_reward',0)
     if reward and pet['food'] < reward:
         raise HTTPException(409,'La comida de esta tarea ya se ha usado. No se puede deshacer.')
+    play_reward=task.get('play_reward',0)
+    if play_reward and pet['play_tokens'] < play_reward:
+        raise HTTPException(409,'El juego ganado con esta tarea ya se ha usado. No se puede deshacer.')
     pet['food'] -= reward
     pet['food_earned'] -= reward
+    pet['play_tokens'] -= play_reward
+    pet['play_earned'] -= play_reward
+    if task.get('care_reward_counted'):pet['care_completed']=max(0,pet['care_completed']-1)
     pet['growth'] = max(0,pet['growth']-1)
     pet['egg_tasks'] = max(0,pet['egg_tasks']-undo.get('egg_gain',0))
     if task_id in pet['birth_completed']:

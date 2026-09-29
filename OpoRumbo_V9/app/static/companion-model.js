@@ -47,7 +47,7 @@ export function createCompanion(type='auri',stage=1,eggStage=0){
  }
  ellipsoid(head,0x475448,[0,-.16,.618],[.066,.046,.035]);
  const smileCurve=new THREE.QuadraticBezierCurve3(new THREE.Vector3(-.095,-.27,.599),new THREE.Vector3(0,-.33,.619),new THREE.Vector3(.095,-.27,.599));
- head.add(new THREE.Mesh(new THREE.TubeGeometry(smileCurve,16,.012,8,false),material(0x475448)));
+ const mouth=new THREE.Mesh(new THREE.TubeGeometry(smileCurve,16,.012,8,false),material(0x475448));head.add(mouth);
  const ears=[];
  for(const side of [-1,1]){
   const ear=new THREE.Group();ear.position.set(side*.43,.43,-.01);ear.rotation.z=-side*(type==='bruma'?.48:.2);head.add(ear);
@@ -69,19 +69,31 @@ export function createCompanion(type='auri',stage=1,eggStage=0){
  let halo;
  if(stage>=5){halo=new THREE.Mesh(new THREE.TorusGeometry(.33,.022,12,48),material(0xe8cb75));halo.position.set(0,1.7,0);halo.rotation.x=Math.PI/2;root.add(halo);}
  const size=.91+Math.min(5,stage)*.018;root.scale.setScalar(size);root.position.y=-.13;
+ const bowl=new THREE.Group();root.add(bowl);
+ ellipsoid(bowl,accent,[0,-.78,.77],[.3,.09,.2]);
+ for(let i=0;i<3;i++)ellipsoid(bowl,0xd69055,[(i-1)*.12,-.68,.78],[.07,.06,.07]);
+ const ball=ellipsoid(root,0xe8ad63,[.5,-.7,.5],[.18,.18,.18]);
+ const bubbles=new THREE.Group();root.add(bubbles);
+ for(let i=0;i<3;i++)ellipsoid(bubbles,0xc5e9e4,[0,0,0],[.09+i*.025,.09+i*.025,.09+i*.025]);
+ bowl.visible=ball.visible=bubbles.visible=false;
  let nextBlink=2.4,blinkEnd=0;
- return {root,update(t,reaction=0,animate=true,reactionKind='happy'){
-  reaction=animate?reaction:0;const wave=Math.sin(reaction*Math.PI),eat=reactionKind==='eat',stroke=reactionKind==='stroke',curious=reactionKind==='curious';
+ return {root,update(t,reaction=0,animate=true,reactionKind='happy',mood='neutral'){
+  const sad=mood==='sad',happy=mood==='happy';mouth.rotation.z=sad?Math.PI:0;mouth.position.y=sad?-.6:0;
+  reaction=animate?reaction:0;const wave=Math.sin(reaction*Math.PI),eat=reactionKind==='eat',stroke=reactionKind==='stroke',curious=reactionKind==='curious',playing=reactionKind==='ball'||reactionKind==='bubbles';
+  bowl.visible=eat&&reaction>0;ball.visible=reactionKind==='ball'&&reaction>0;bubbles.visible=reactionKind==='bubbles'&&reaction>0;
+  ball.position.set(Math.sin(reaction*Math.PI*4)*.68,-.72+Math.abs(Math.sin(reaction*Math.PI*4))*.32,.62);
+  bubbles.children.forEach((b,i)=>{b.position.set(Math.sin(reaction*6+i)*.65,-.5+((reaction+i/3)%1)*2,.7);});
+  mouth.scale.y=1+(eat?wave*Math.abs(Math.sin(reaction*Math.PI*10))*.3:0);
   body.scale.y=animate?1+Math.sin(t*2)*.024:1;
   head.rotation.y=animate?Math.sin(t*.6)*.13:0;
   head.rotation.z=(animate?Math.sin(t*.8)*.035:0)+(stroke?wave*.18:curious?wave*-.22:0);
-  head.rotation.x=eat?Math.sin(reaction*Math.PI*6)*wave*.13:0;
-  head.rotation.y+=curious?Math.sin(reaction*Math.PI*2)*.3:0;
-  ears.forEach((ear,i)=>ear.rotation.z=(i? -1:1)*(type==='bruma'?.48:.2)+(animate?Math.sin(t*1.8+i)*.035:0));
-  tail.rotation.y=animate?Math.sin(t*2)*.28+wave*Math.sin(t*12)*.3:0;
+  head.rotation.x=(sad?.12:happy?-.04:0)+(eat?Math.sin(reaction*Math.PI*6)*wave*.13:0);
+  head.rotation.y+=curious?Math.sin(reaction*Math.PI*2)*.3:playing?Math.sin(reaction*Math.PI*4)*.25:0;
+  ears.forEach((ear,i)=>ear.rotation.z=(i? -1:1)*((type==='bruma'?.48:.2)+(sad?.22:happy?-.06:0))+(animate?Math.sin(t*1.8+i)*.035:0));
+  tail.rotation.y=animate?Math.sin(t*2)*(sad?.07:happy?.4:.28)+wave*Math.sin(t*12)*.3:0;
   if(animate&&t>nextBlink){blinkEnd=t+.14;nextBlink=t+1.8+Math.random()*4.8;}
-  eyes.forEach(eye=>eye.scale.y=animate&&t<blinkEnd?.09:reaction>0?.55:1);
-  const bounce=reaction>0?Math.sin(reaction*Math.PI):0;
+  eyes.forEach(eye=>eye.scale.y=animate&&t<blinkEnd?.09:reaction>0?.55:sad?.7:happy?.85:1);
+  const bounce=reaction>0?(playing?Math.abs(Math.sin(reaction*Math.PI*3))*wave:Math.sin(reaction*Math.PI)):0;
   root.position.y=-.13+bounce*(eat?.06:stroke?.035:curious?.015:reactionKind==='milestone'?.32:.22);root.rotation.z=reaction>0?Math.sin(reaction*Math.PI*2)*.065:0;
   if(halo)halo.rotation.z=animate?t*.25:0;
  },dispose(){root.traverse(o=>o.geometry?.dispose());materials.forEach(m=>m.dispose());}};
