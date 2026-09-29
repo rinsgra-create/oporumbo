@@ -42,12 +42,12 @@ function enqueue(job){
   notice(error.message,true);
  }).finally(()=>{writing--;updateBusy();});
 }
-function updateBusy(){document.querySelectorAll('[data-write]').forEach(b=>b.disabled=writing>0);}
+function updateBusy(){document.querySelectorAll('[data-write]').forEach(b=>{if(!b.hasAttribute('data-outfit'))b.disabled=writing>0;});if(writing)document.querySelectorAll('[data-outfit]').forEach(b=>b.disabled=true);else if(state.wardrobe&&typeof wardrobeRound!=='undefined')renderWardrobe();}
 function rememberPending(){if(user)localStorage.setItem('or-pending-'+user.id,JSON.stringify([...pending.values()].map(({id,score,actual_minutes})=>({id,score,actual_minutes}))));}
 function activePet(){const c=state.companion_collection;return c?.pets[c.active_round-1];}
 function stage(){return state.pet?.hatched?Math.max(1,(activePet()?.phase||3)-2):0;}
 function sendPet(type,extra={}){try{const f=$('pet3dFrame');if(f?.contentWindow)f.contentWindow.postMessage({type,...extra},location.origin);}catch(error){console.warn('Vista del compañero no disponible',error.name);}}
-function syncPet(){if(typeof state.pet?.hatched!=='boolean')return;if(petReady)$('pet3dFrame').style.visibility='visible';sendPet('setPet',{pet:state.pet.type,stage:stage(),eggStage:state.pet.egg_stage||0,mood:state.companion_rhythm?.mood||'neutral',animations:state.prefs.animations!==false&&!matchMedia('(prefers-reduced-motion: reduce)').matches});}
+function syncPet(){if(typeof state.pet?.hatched!=='boolean')return;if(petReady)$('pet3dFrame').style.visibility='visible';sendPet('setPet',{pet:state.pet.type,stage:stage(),outfit:activePet()?.outfit||{},eggStage:state.pet.egg_stage||0,mood:state.companion_rhythm?.mood||'neutral',animations:state.prefs.animations!==false&&!matchMedia('(prefers-reduced-motion: reduce)').matches});}
 window.addEventListener('message',event=>{
  if(event.origin!==location.origin||event.source!==$('pet3dFrame').contentWindow)return;
  if(event.data?.type==='pet3dReady'){petReady=true;$('petHero').hidden=true;$('eggFallback').hidden=true;$('threeStatus').textContent='3D activo';normalize();syncPet();sendPet('visibility',{visible:['Today','Companion'].includes(screen)&&!document.hidden});}
@@ -170,7 +170,7 @@ function submitCompletion(id){
  enqueue(async()=>{
   const intent=pending.get(id);if(!intent)return;
   intent.failed=false;render();
-  try{const wasHatched=!!state.pet.hatched,previousStage=stage();state=await api('/api/tasks/'+encodeURIComponent(id)+'/complete',{method:'POST',body:{score:intent.score,actual_minutes:intent.actual_minutes}});pending.delete(id);rememberPending();render();sound(!wasHatched&&state.pet.hatched?'birth':stage()>previousStage?'milestone':'reward');if(!wasHatched&&state.pet.hatched){$('careStatus').textContent='¡Ha nacido '+names[state.pet.type]+'! Objetivo completado.';}else if(stage()>previousStage)sendPet('react',{reaction:'milestone'});notice('Guardado. Un paso más hacia tu objetivo.');}
+  try{const beforeCoins=state.wardrobe?.coins||0,wasHatched=!!state.pet.hatched,previousStage=stage();state=await api('/api/tasks/'+encodeURIComponent(id)+'/complete',{method:'POST',body:{score:intent.score,actual_minutes:intent.actual_minutes}});pending.delete(id);rememberPending();render();sound(!wasHatched&&state.pet.hatched?'birth':stage()>previousStage?'milestone':'reward');if(!wasHatched&&state.pet.hatched){$('careStatus').textContent='¡Ha nacido '+names[state.pet.type]+'! Objetivo completado.';}else if(stage()>previousStage)sendPet('react',{reaction:'milestone'});const coins=(state.wardrobe?.coins||0)-beforeCoins;notice(coins>0?`Guardado. +${coins} monedas para vestir a tu compañero.`:'Guardado. Un paso más hacia tu objetivo.');}
   catch(error){
    if(error.status&&error.status!==401)pending.delete(id);else intent.failed=true;
    rememberPending();render();throw error;
@@ -264,7 +264,8 @@ function renderCare(){
  $('feedPet').hidden=!hatched;$('feedPet').textContent='Darle de comer · '+(p.food||0)+(p.food===1?' ración':' raciones');
  $('playControls').hidden=!hatched;$('playStock').textContent=`${p.play_tokens||0} sesiones de juego · ganas una cada 3 tareas`;$('rewardProgress').textContent=`Cada tarea da una ración. Próximo juego: ${3-((p.care_completed||0)%3)} tareas.`;
  $('petStats').textContent=`Fase ${activePet()?.phase||1}/10 · ${activePet()?.phase_name||'Huevo intacto'} · ${{sad:'Triste',neutral:'Neutro',happy:'Contento',very_happy:'Muy contento'}[mood]}`;
- renderTeam();
+ $('outfitLabel').textContent=outfitText(activePet());
+ renderTeam();renderWardrobe();
  $('strokePet').setAttribute('aria-label',hatched?'Acariciar a '+names[p.type]:'Acariciar el huevo');
 }
 async function careAction(action,kind){
@@ -387,7 +388,7 @@ function renderTeam(){
  const c=state.companion_collection;if(!c)return;
  $('teamCards').innerHTML=c.pets.map(e=>`<article class="teamCard ${e.unlocked?'':'teamLocked'}"><img src="/static/${esc(e.species)}.png" alt="${esc(names[e.species])}"><h2>${esc(names[e.species])}</h2><small>Vuelta ${e.round} · ${e.unlocked?'Desbloqueado':'Bloqueado'}</small><p>${e.hatched?'Nació en la vuelta '+e.round:'Huevo de la vuelta '+e.round}</p><p>Fase ${e.phase}/10 · ${esc(e.phase_name)}</p><small>${e.completed_at?'Forma final lograda':Math.round(e.progress*100)+'% de estudio'}</small>${e.unlocked?`<button class="btn secondary" data-view-round="${e.round}">Ver</button>${e.hatched?`<button class="btn secondary" data-call-round="${e.round}">Llamar</button><button class="btn secondary" data-play-round="${e.round}" data-write>Jugar</button>`:''}`:''}</article>`).join('');
  let growth=$('collectionGrowth');if(!growth){growth=document.createElement('p');growth.id='collectionGrowth';$('collectionCare').prepend(growth);}
- const e=activePet();growth.textContent=`Vuelta ${c.active_round}: ${Math.round(e.progress*100)}% de crecimiento académico · Alegría ${e.happiness}/100 · Comida ${state.pet.food||0}`;
+ const e=activePet();growth.textContent=`Vuelta ${c.active_round}: ${Math.round(e.progress*100)}% de avance · ${e.study_days?.length||0} días de estudio · Alegría ${e.happiness}/100. ${e.phase>=3&&e.phase<9?'Próxima fase: al menos '+e.next_phase_days+' días y el avance de estudio correspondiente.':''}`;
  if(c.complete&&!c.final_celebration_seen&&!celebrationShown){celebrationShown=true;setTimeout(()=>openTeam(c.pets,true),0);}
 }
 function syncTeam(){const f=$('teamFrame');f.contentWindow?.postMessage({type:'setTeam',pets:teamMembers,animations:state.prefs?.animations!==false},location.origin);f.contentWindow?.postMessage({type:'visibility',visible:$('teamDialog').open&&!document.hidden},location.origin);}
@@ -396,3 +397,19 @@ window.addEventListener('message',event=>{if(event.origin!==location.origin||eve
 $('teamCards').onclick=e=>{const b=e.target.closest('button');if(!b)return;const c=state.companion_collection;const r=+(b.dataset.viewRound||b.dataset.callRound||b.dataset.playRound),pet=c.pets[r-1];if(b.dataset.playRound)enqueue(async()=>{state=await api('/api/pet/care',{method:'POST',body:{action:'team_play',round:r,revision:state._revision}});render();openTeam([state.companion_collection.pets[r-1]]);sound('play');$('teamFrame').contentWindow.postMessage({type:'react',reaction:'ball'},location.origin);});else if(b.dataset.callRound){openTeam(r===c.active_round?[pet]:[activePet(),pet]);$('teamText').textContent=names[pet.species]+' viene a jugar contigo durante unos instantes.';teamVisitTimer=setTimeout(()=>{if(!teamCelebration){$('teamDialog').close();syncTeam();}},15000);}else openTeam([pet]);};
 async function closeTeam(){clearTimeout(teamVisitTimer);if(teamCelebration){state=await api('/api/pet/care',{method:'POST',body:{action:'celebration_seen',revision:state._revision}});teamCelebration=false;}$('teamDialog').close();syncTeam();render();}
 $('closeTeam').onclick=()=>enqueue(closeTeam);$('teamDialog').addEventListener('cancel',e=>{e.preventDefault();enqueue(closeTeam);});
+
+let wardrobeRound=null;
+function outfitText(pet){const ids=Object.values(pet?.outfit||{});return ids.length?'Lleva '+ids.map(id=>state.wardrobe_catalog?.find(i=>i.id===id)?.name||'').filter(Boolean).join(' y '):'';}
+function renderWardrobe(){
+ const w=state.wardrobe,c=state.companion_collection;if(!w||!c)return;
+ if(!wardrobeRound||!c.pets[wardrobeRound-1]?.unlocked)wardrobeRound=c.active_round;
+ $('coinBalance').textContent=`🪙 ${w.coins} monedas de estudio`;
+ $('wardrobePet').innerHTML=c.pets.filter(p=>p.unlocked).map(p=>`<option value="${p.round}">${names[p.species]} · Vuelta ${p.round}${p.hatched?'':' · aún en el huevo'}</option>`).join('');$('wardrobePet').value=wardrobeRound;
+ const pet=c.pets[wardrobeRound-1];
+ $('wardrobeItems').innerHTML=(state.wardrobe_catalog||[]).map(item=>{const owned=w.owned.includes(item.id),equipped=pet.outfit?.[item.slot]===item.id;return `<article class="wardrobeItem"><span class="wardrobeIcon" aria-hidden="true">${esc(item.icon)}</span><h3>${esc(item.name)}</h3><p>${equipped?'Puesta':owned?'En tu armario':item.price+' monedas'}</p><button class="btn secondary" data-try-outfit="${esc(item.id)}">Probar</button><button class="btn" data-outfit="${esc(item.id)}" data-outfit-action="${owned?(equipped?'unequip':'equip'):'buy'}" data-write ${(!owned&&w.coins<item.price)||(owned&&!pet.hatched)?'disabled':''}>${owned?(equipped?'Quitar':'Poner'):'Comprar · '+item.price}</button></article>`;}).join('');
+}
+$('wardrobePet').onchange=()=>{wardrobeRound=+$('wardrobePet').value;renderWardrobe();};
+$('wardrobeItems').onclick=e=>{const b=e.target.closest('button');if(!b)return;const id=b.dataset.outfit||b.dataset.tryOutfit,item=state.wardrobe_catalog.find(i=>i.id===id),pet=state.companion_collection.pets[wardrobeRound-1];if(!item)return;
+ if(b.dataset.tryOutfit){openTeam([{...pet,hatched:true,phase:Math.max(3,pet.phase),outfit:{...pet.outfit,[item.slot]:id}}]);$('teamTitle').textContent='Probando: '+item.name;$('teamText').textContent='Esta prueba no gasta monedas ni cambia la ropa guardada.';return;}
+ const action=b.dataset.outfitAction;enqueue(async()=>{state=await api('/api/pet/wardrobe',{method:'POST',body:{action,item:id,round:wardrobeRound,slot:item.slot,revision:state._revision}});render();$('wardrobeStatus').textContent=action==='buy'?item.name+' ya está en tu armario. Pulsa Poner para vestir a tu compañero.':action==='equip'?item.name+' puesta.':item.name+' guardada en el armario.';});
+};

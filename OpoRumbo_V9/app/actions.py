@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from .workload import coverage, test_coverage, record_session
 from .planner import record_test, roadmap, _due_reviews, _today
 from .pet import companion, study_birth, STUDY_KINDS
+from .wardrobe import reward as wardrobe_reward, check_undo as check_wardrobe_undo, undo_reward
 
 
 def identify_tasks(progress):
@@ -72,8 +73,10 @@ def complete_task(progress, opposition, task_id, score=None, actual_minutes=None
     pet['growth'] += 1
     undo['egg_gain']=int(not pet['hatched'] and kind in STUDY_KINDS)
     pet['egg_tasks'] += undo['egg_gain']
+    task['companion_round']=progress.get('companion_collection',{}).get('active_round',1)
     study_birth(progress, task)
     if kind in STUDY_KINDS:
+        wardrobe_reward(progress,task)
         pet['food'] += 1
         pet['food_earned'] += 1
         task['food_reward'] = 1
@@ -106,6 +109,8 @@ def undo_last_task(progress, opposition, task_id):
     play_reward=task.get('play_reward',0)
     if play_reward and pet['play_tokens'] < play_reward:
         raise HTTPException(409,'El juego ganado con esta tarea ya se ha usado. No se puede deshacer.')
+    check_wardrobe_undo(progress,task_id)
+    undo_reward(progress,task_id)
     pet['food'] -= reward
     pet['food_earned'] -= reward
     pet['play_tokens'] -= play_reward

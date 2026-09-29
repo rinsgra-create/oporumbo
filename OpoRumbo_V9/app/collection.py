@@ -2,9 +2,11 @@
 from datetime import date
 from .workload import weights, coverage, test_coverage
 
-PHASES = ['Huevo intacto', 'Huevo con grietas', 'ReciÃ©n nacido', 'BebÃ©',
+PHASES = ['Huevo intacto', 'Huevo con grietas', 'Recién nacido', 'Bebé',
           'Infantil', 'Infantil avanzado', 'Juvenil', 'Juvenil avanzado',
           'Adulto joven', 'Forma final']
+MIN_STUDY_DAYS = {3:1,4:3,5:6,6:10,7:15,8:22,9:30}
+
 BIRTH = ('hatched', 'egg_started', 'egg_tasks', 'egg_stage', 'first_study_date',
          'hatched_at', 'first_day_goal', 'birth_completed')
 
@@ -15,6 +17,7 @@ def activity(p, today=None):
         return
     day = (today or date.today()).isoformat()
     active = c['pets'][c['active_round']-1]
+    active['study_days']=sorted(set(active.get('study_days',[]))|{day})
     active['last_activity'] = day
     active['joy'] = max(75, p['pet'].get('happiness', 50))
 
@@ -43,12 +46,11 @@ def sync(p, opposition, today=None):
             if r == target:
                 entry.update({k:pet[k] for k in BIRTH})
                 if pet['hatched']:
-                    g=pet['growth']
-                    old=5 if g>=100 else 4 if g>=50 else 3 if g>=20 else 2 if g>=8 or p.get('xp',0)>=300 else 1
-                    entry['phase']={1:3,2:4,3:6,4:8,5:9}[old]
+                    entry['phase']=3
                     entry['born_at']=pet['hatched_at'] or day
             c['pets'].append(entry)
         p['companion_collection']=c
+    recalibrate=c.get('growth_schema') != 2
     current=c['pets'][c['active_round']-1]
     current.update({k:pet[k] for k in BIRTH})
     current['species']=pet['type']
@@ -58,6 +60,17 @@ def sync(p, opposition, today=None):
             if not e['unlocked']:e['species']=s
     for entry in c['pets']:
         r=entry['round']
+        if recalibrate:
+            entry['phase_before_recalibration']=entry['phase']
+            dates=set(entry.get('study_days',[]))
+            # Only actual dated study evidence; never XP, feeding or elapsed idle days.
+            if r==c['active_round']:
+                dates.update(t['completed_on'] for t in p.get('tasks',[]) if t.get('done') and t.get('completed_on') and t.get('companion_round',r)==r)
+                dates.update(x['date'] for x in p.get('pacing',{}).get('sessions',[]) if x.get('date') and x.get('companion_round',r)==r)
+                if entry.get('first_study_date'):dates.add(entry['first_study_date'])
+            entry['study_days']=sorted(dates)
+        entry.setdefault('study_days',[])
+
         if r<=completed:
             entry.update(unlocked=True, hatched=True, phase=10)
             entry['completed_at']=entry['completed_at'] or day
@@ -71,7 +84,14 @@ def sync(p, opposition, today=None):
             # Food advances at most three percentage points, at most 10% of earned work.
             effective=min(.999,fraction+min(.03,fraction*.1,entry.get('food_bonus',0)))
             phase=3+sum(effective>=n for n in (.12,.25,.38,.52,.67,.82))
-            entry['phase']=max(entry['phase'],phase)
+            day_phase=max((ph for ph,minimum in MIN_STUDY_DAYS.items() if len(entry['study_days'])>=minimum),default=3)
+            phase=min(phase,day_phase)
+            if recalibrate and not entry['completed_at']:
+                entry['phase']=phase
+            else:
+                entry['phase']=max(entry['phase'],phase)
+            entry['next_phase_days']=MIN_STUDY_DAYS.get(min(9,entry['phase']+1),30)
+
         elif entry.get('egg_tasks',0) or fraction>0:
             entry['phase']=2
         else:
@@ -92,9 +112,10 @@ def sync(p, opposition, today=None):
     pet.update({k:current[k] for k in BIRTH if k in current})
     pet.update(type=current['species'],hatched=current['hatched'],phase=current['phase'])
     pet['egg_stage']=max(1,min(2,current.get('egg_tasks',0))) if current['phase']==2 else 0 if current['phase']==1 else 2
+    c['growth_schema']=2
     c['as_of']=day
     c['complete']=all(x['phase']==10 for x in c['pets'])
-    messages={'sad':'Hoy te he echado de menos. Â¿Compartimos un ratito?', 'neutral':'Te acompaÃ±o a tu ritmo.', 'happy':'Â¡QuÃ© alegrÃ­a compartir este camino!', 'very_happy':'Â¡Me encanta avanzar contigo!'}
+    messages={'sad':'Hoy te he echado de menos. ¿Compartimos un ratito?', 'neutral':'Te acompaño a tu ritmo.', 'happy':'¡Qué alegría compartir este camino!', 'very_happy':'¡Me encanta avanzar contigo!'}
     p['companion_rhythm']={'mood':current['mood'],'message':messages[current['mood']]}
 
 

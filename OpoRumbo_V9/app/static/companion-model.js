@@ -4,7 +4,7 @@ export const PHASE_VARIANTS = [null,null,{size:.58,head:1.20,ears:.4,tail:.3},{s
 export const phaseSize=stage=>stage===0?1:(PHASE_VARIANTS[stage+1]?.size||.58);
 // Adapter boundary for future GLB assets: return {root, update, dispose}.
 // All current characters are actual lit meshes, never animated photographs.
-export function createCompanion(type='auri',stage=1,eggStage=0){
+export function createCompanion(type='auri',stage=1,eggStage=0,outfit={}){
  const palettes={auri:[0xf0c478,0xfaf0d8,0x779f73],nexo:[0x50738c,0xc6e4d9,0x83c9bd],bruma:[0xb6aad2,0xeee7f4,0x9d94c1]};
  const [main,cream,accent]=palettes[type]||palettes.auri;
  const root=new THREE.Group(),body=new THREE.Group(),head=new THREE.Group();root.add(body);body.add(head);head.position.y=.65;
@@ -69,13 +69,32 @@ export function createCompanion(type='auri',stage=1,eggStage=0){
  head.scale.setScalar(variant.head);head.position.y=.5+(stage*.025);ears.forEach(e=>e.scale.y=variant.ears);tail.scale.setScalar(variant.tail);
  if(stage===1)ellipsoid(body,cream,[0,-.62,.18],[.65,.20,.5]);
  if(stage>=2)ellipsoid(body,accent,[0,.16,.46],[.09,.12,.055]);
- if(stage>=3){const sprout=ellipsoid(head,accent,[0,.64,-.06],[.1,.24,.085]);sprout.rotation.z=-.3;}
+ if(stage>=3&&!outfit.head){const sprout=ellipsoid(head,accent,[0,.64,-.06],[.1,.24,.085]);sprout.rotation.z=-.3;}
  if(stage>=5)for(const side of [-1,1])ellipsoid(body,accent,[side*.66,.04,-.22],[.17,.42,.12]).rotation.z=-side*.65;
  let halo;
  if(stage>=8){halo=new THREE.Mesh(new THREE.TorusGeometry(.33,.022,12,48),material(0xe8cb75));halo.position.set(0,1.7,0);halo.rotation.x=Math.PI/2;root.add(halo);}
- if(stage>=4){const scarf=new THREE.Mesh(new THREE.TorusGeometry(.34,.075,8,24),material(accent));scarf.rotation.x=Math.PI/2;scarf.position.y=.36;body.add(scarf);}
+ if(stage>=4&&!outfit.neck){const scarf=new THREE.Mesh(new THREE.TorusGeometry(.34,.075,8,24),material(accent));scarf.rotation.x=Math.PI/2;scarf.position.y=.36;body.add(scarf);}
  if(stage>=6)for(const side of [-1,1])ellipsoid(head,cream,[side*.48,.2,.45],[.1,.16,.04]);
- if(stage>=7)for(let i=0;i<3;i++)ellipsoid(head,0xe8cb75,[(i-1)*.16,.7,.04],[.07,.19+(i===1?.1:0),.06]);
+ if(stage>=7&&!outfit.head)for(let i=0;i<3;i++)ellipsoid(head,0xe8cb75,[(i-1)*.16,.7,.04],[.07,.19+(i===1?.1:0),.06]);
+ // Cosmetics attach to anatomy, so they follow every phase and animation.
+ if(['cap_leaf','cap_coral'].includes(outfit.head)){
+  const color=outfit.head==='cap_leaf'?0x31785b:0xd96762;
+  ellipsoid(head,color,[0,.66,.04],[.50,.25,.41]);
+  ellipsoid(head,color,[0,.55,.43],[.53,.045,.32]);
+  ellipsoid(head,0xffe4a1,[0,.71,.41],[.07,.07,.025]);
+ }else if(outfit.head==='beanie_sky'){
+  ellipsoid(head,0x70a8cf,[0,.62,.03],[.47,.23,.39]);
+  ellipsoid(head,0xabcde0,[0,.49,.03],[.49,.065,.41]);
+  ellipsoid(head,0xf0e6d2,[0,.88,.02],[.13,.13,.13]);
+ }
+ const collarY=stage<=2?-.24:stage<=4?-.06:.20;
+ if(outfit.neck==='scarf_sun'){
+  const cloth=new THREE.Mesh(new THREE.TorusGeometry(.35,.08,8,24),material(0xeeb95b));cloth.rotation.x=Math.PI/2;cloth.position.set(0,collarY,.22);body.add(cloth);
+  ellipsoid(body,0xeeb95b,[.19,collarY-.20,.70],[.105,.23,.055]).rotation.z=-.25;
+ }else if(outfit.neck==='bow_violet'){
+  for(const side of [-1,1])ellipsoid(body,0x9970b4,[side*.12,collarY,.70],[.15,.105,.065]).rotation.z=side*.2;
+  ellipsoid(body,0xdbc7ec,[0,collarY,.76],[.07,.07,.045]);
+ }
  const size=variant.size;root.scale.setScalar(size);root.position.y=-.13;
  const bowl=new THREE.Group();root.add(bowl);
  ellipsoid(bowl,accent,[0,-.78,.77],[.3,.09,.2]);

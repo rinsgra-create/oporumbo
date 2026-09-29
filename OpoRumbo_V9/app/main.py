@@ -13,12 +13,13 @@ from .workload import weights, earned_minutes
 from .actions import identify_tasks,complete_task,undo_last_task
 from .pet import companion,care,upgrade_birth,update_rhythm
 from .collection import sync as sync_collection, care_bonus
+from .wardrobe import project as project_wardrobe, change as wardrobe_change
 from .planner import make_day,record_test,roadmap,_today
 from .researcher import search_catalog,search_boe,inspect_boe
 
 BASE=Path(__file__).resolve().parent
 CATALOG=json.loads((BASE/"catalog.json").read_text(encoding="utf-8"))
-app=FastAPI(title="OpoRumbo",version="21.0")
+app=FastAPI(title="OpoRumbo",version="21.5")
 init_db()
 
 @app.exception_handler(ProgressConflict)
@@ -113,9 +114,10 @@ def refresh_workload(p):
         p.setdefault("workload_anchor",{"date":_today().isoformat(),"required_minutes":p["roadmap"]["estimated_minutes_required"],"earned_minutes":earned_minutes(o,p,s.get("target_rounds",3)),"target_rounds":s.get("target_rounds",3),"daily_minutes":s.get("minutes_default",180),"days_per_week":s.get("days_per_week",6)})
         update_rhythm(p,o,_today())
     sync_collection(p,o,_today())
+    project_wardrobe(p)
 
 @app.get("/api/health")
-def health():return {"ok":True,"version":"21.0"}
+def health():return {"ok":True,"version":"21.5"}
 
 @app.post("/api/register")
 def api_register(x:AuthReq):
@@ -136,7 +138,7 @@ def me(authorization:str|None=Header(None)):return require_user(authorization)
 @app.get("/api/progress")
 def progress(authorization:str|None=Header(None)):
     u=require_user(authorization);p=get_progress(u["id"])
-    if p.get('pet', {}).get('birth_schema') != 201 or p.get('companion_collection',{}).get('as_of') != _today().isoformat() or (p.get('settings') and not p.get('rhythm_anchor')):
+    if p.get('companion_collection',{}).get('growth_schema') != 2 or 'wardrobe' not in p or p.get('pet', {}).get('birth_schema') != 201 or p.get('companion_collection',{}).get('as_of') != _today().isoformat() or (p.get('settings') and not p.get('rhythm_anchor')):
         def upgrade(data):
             identify_tasks(data)
             upgrade_birth(data)
@@ -155,7 +157,7 @@ def save(x:SaveReq,authorization:str|None=Header(None)):
         rhythm_anchor=p.get('rhythm_anchor')
         play_state={k:companion(p)[k] for k in ('play_tokens','play_earned','play_spent','care_completed')}
         collection=p.get("companion_collection")
-        p.update({k:v for k,v in x.data.items() if k != "companion_collection"})
+        p.update({k:v for k,v in x.data.items() if k not in ("companion_collection","wardrobe","wardrobe_catalog")})
         if collection is not None:p["companion_collection"]=collection
         if rhythm_anchor is not None:p['rhythm_anchor']=rhythm_anchor
         else:p.pop('rhythm_anchor',None)
@@ -370,6 +372,23 @@ def pet_care(x:CareReq,authorization:str|None=Header(None)):
         else:
             care(p,x.action,x.kind)
             care_bonus(p,x.action)
+        refresh_workload(p)
+    return mutate_progress(u['id'],change,x.revision)
+
+
+class WardrobeReq(BaseModel):
+    action:Literal['buy','equip','unequip']
+    item:str|None=None
+    round:int|None=Field(None,ge=1,le=3)
+    slot:Literal['head','neck']|None=None
+    revision:int
+
+@app.post('/api/pet/wardrobe')
+def wardrobe_action(x:WardrobeReq,authorization:str|None=Header(None)):
+    u=require_user(authorization)
+    def change(p):
+        refresh_workload(p)
+        wardrobe_change(p,x.action,x.item,x.round,x.slot)
         refresh_workload(p)
     return mutate_progress(u['id'],change,x.revision)
 
