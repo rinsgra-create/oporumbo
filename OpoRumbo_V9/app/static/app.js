@@ -5,6 +5,8 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;
 let token=['or18','or15','or14','or13','or12','or11','or9'].map(k=>localStorage.getItem(k)).find(Boolean);
 let state={},opposition=null,user=null,screen='Today',selectedOpp=null,pendingTest=null,pendingTime=null,configuringOpp=false;
 let pending=new Map(),queue=Promise.resolve(),writing=0,petReady=false,audioContext;
+let academyDraft=null;
+let academyEdit=0;
 const names={auri:'Auri',nexo:'Nexo',bruma:'Bruma'};
 const today=()=>new Date().toLocaleDateString('en-CA');
 function notice(message,error=false){$('notice').textContent=message;$('notice').classList.toggle('error',error);$('notice').hidden=!message;}
@@ -41,21 +43,21 @@ function enqueue(job){
 }
 function updateBusy(){document.querySelectorAll('[data-write]').forEach(b=>b.disabled=writing>0);}
 function rememberPending(){if(user)localStorage.setItem('or-pending-'+user.id,JSON.stringify([...pending.values()].map(({id,score,actual_minutes})=>({id,score,actual_minutes}))));}
-function stage(){const r=state.roadmap||{};return r.completed_rounds>=2?5:r.first_round_pct>=100?4:(r.first_round_pct>=50?3:state.xp>=300?2:1);}
-function sendPet(type,extra={}){const f=$('pet3dFrame');if(f?.contentWindow)f.contentWindow.postMessage({type,...extra},location.origin);}
-function syncPet(){sendPet('setPet',{pet:state.pet.type,stage:stage(),animations:state.prefs.animations!==false&&!matchMedia('(prefers-reduced-motion: reduce)').matches});}
+function stage(){if(!state.pet?.hatched)return 0;const r=state.roadmap||{},g=state.pet.growth||0;return Math.max(g>=100?5:g>=50?4:g>=20?3:g>=8?2:1,r.completed_rounds>=2?5:r.first_round_pct>=100?4:(r.first_round_pct>=50?3:state.xp>=300?2:1));}
+function sendPet(type,extra={}){try{const f=$('pet3dFrame');if(f?.contentWindow)f.contentWindow.postMessage({type,...extra},location.origin);}catch(error){console.warn('Vista del compañero no disponible',error.name);}}
+function syncPet(){if(typeof state.pet?.hatched!=='boolean')return;if(petReady)$('pet3dFrame').style.visibility='visible';sendPet('setPet',{pet:state.pet.type,stage:stage(),eggStage:state.pet.egg_stage||0,animations:state.prefs.animations!==false&&!matchMedia('(prefers-reduced-motion: reduce)').matches});}
 window.addEventListener('message',event=>{
  if(event.origin!==location.origin||event.source!==$('pet3dFrame').contentWindow)return;
- if(event.data?.type==='pet3dReady'){petReady=true;$('petHero').hidden=true;$('pet3dFrame').style.visibility='visible';$('threeStatus').textContent='3D activo';normalize();syncPet();}
- if(event.data?.type==='pet3dFailed'){petReady=false;$('petHero').hidden=false;$('pet3dFrame').style.visibility='hidden';$('threeStatus').textContent='Vista sencilla';console.warn('Compañero 3D:',event.data.reason);}
+ if(event.data?.type==='pet3dReady'){petReady=true;$('petHero').hidden=true;$('eggFallback').hidden=true;$('threeStatus').textContent='3D activo';normalize();syncPet();sendPet('visibility',{visible:screen==='Today'&&!document.hidden});}
+ if(event.data?.type==='pet3dFailed'){petReady=false;renderCare();$('pet3dFrame').style.visibility='hidden';$('threeStatus').textContent='Vista sencilla';console.warn('Compañero 3D:',event.data.reason);}
 });
-function sound(){
+function sound(kind='reward'){
  if(state.prefs?.sound===false)return;
  try{
   audioContext=audioContext||new (window.AudioContext||window.webkitAudioContext)();
   if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});
   const now=audioContext.currentTime;
-  [523.25,659.25,783.99].forEach((f,i)=>{const o=audioContext.createOscillator(),g=audioContext.createGain();o.type='sine';o.frequency.value=f;o.connect(g);g.connect(audioContext.destination);g.gain.setValueAtTime(0,now+i*.045);g.gain.linearRampToValueAtTime(.07,now+i*.045+.008);g.gain.exponentialRampToValueAtTime(.001,now+i*.045+.18);o.start(now+i*.045);o.stop(now+i*.045+.2);o.onended=()=>{o.disconnect();g.disconnect();};});
+  (kind==='pet'?[330,440]:[523.25,659.25,783.99]).forEach((f,i)=>{const o=audioContext.createOscillator(),g=audioContext.createGain();o.type='sine';o.frequency.setValueAtTime(f,now+i*.045);if(kind==='pet')o.frequency.exponentialRampToValueAtTime(f*1.3,now+i*.045+.14);o.connect(g);g.connect(audioContext.destination);g.gain.setValueAtTime(0,now+i*.045);g.gain.linearRampToValueAtTime(kind==='pet'?.035:.07,now+i*.045+.008);g.gain.exponentialRampToValueAtTime(.001,now+i*.045+.18);o.start(now+i*.045);o.stop(now+i*.045+.2);o.onended=()=>{o.disconnect();g.disconnect();};});
  }catch(error){console.warn('Audio no disponible',error.name);}
 }
 function celebrate(rect){
@@ -64,21 +66,27 @@ function celebrate(rect){
  const sx=rect.left+rect.width/2,sy=rect.top+rect.height/2,dx=target.left+target.width/2-sx,dy=target.top+target.height*.6-sy;
  orb.style.left=sx+'px';orb.style.top=sy+'px';
  const animation=orb.animate([{transform:'translate(-50%,-50%) scale(.7)',opacity:1},{transform:`translate(${dx*.55}px,${dy*.55-65}px) scale(1.15)`,opacity:1},{transform:`translate(${dx}px,${dy}px) scale(.2)`,opacity:0}],{duration:650,easing:'ease-in-out'});
- animation.onfinish=()=>{orb.remove();if(petReady)sendPet('react',{reaction:'eat'});};
+ animation.onfinish=()=>{orb.remove();if(petReady)sendPet('react',{reaction:'happy'});};
 }
 function render(){
  normalize();const xp=state.xp||0;
  $('petName').textContent=names[state.pet.type];$('petHero').src='/static/'+state.pet.type+'.png';$('level').textContent='Nivel '+(Math.floor(xp/300)+1);$('energy').textContent=(state.pet.energy??100)+'%';$('xpFill').style.width=(xp%300)/3+'%';syncPet();
+ renderCare();
  document.documentElement.classList.toggle('reduce-motion',!state.prefs.animations);
  $('date').textContent=new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'short'});
  const tasks=state.tasks,done=tasks.filter(t=>t.done||pending.has(t.id)).length,total=tasks.length;
- $('dayMeta').textContent=`${done} de ${total} completadas · ${tasks.reduce((n,t)=>n+t.minutes,0)} min`;
+ const totalMinutes=tasks.reduce((n,t)=>n+(t.done?(t.actual_minutes??t.minutes):t.minutes),0);
+ $('dayMeta').textContent=`${done} de ${total} completadas · ${Math.round(totalMinutes)} min en total`;
  $('dayFill').style.width=(total?done/total*100:0)+'%';
+ $('todayAcademy').hidden=state.mode!=='academy';
+ $('todayAcademy').textContent=state.plan_extra_minutes>0?`Las sesiones de hoy superan en unos ${state.plan_extra_minutes} min tu tiempo diario previsto. Puedes repartirlas o ajustar tu disponibilidad en Perfil.`:state.academy_selected?.length?'Los temas de academia elegidos están incluidos en Hoy.':'Elige los temas que estudiarás hoy con la academia.';
  $('tasks').innerHTML=tasks.map(t=>{
   const intent=pending.get(t.id),complete=t.done||!!intent;
   let tag=t.kind==='urgent_review'?'<span class="tag red">Repaso prioritario</span>':t.kind==='maintenance'?'<span class="tag green">Mantenimiento</span>':t.kind==='test'?`<span class="tag blue">Objetivo ${state.settings.target_score||80}%${t.score!=null?' · Nota '+t.score+'%':''}</span>`:'';
   let status=intent?(intent.failed?'Pendiente de confirmar':'Guardando…'):t.done?'Hecho hoy':'';
-  return `<article class="task ${complete?'completed':''}"><div class="taskCopy"><b>${esc(t.title)}</b><small>${esc(t.detail)}</small><div class="taskMeta"><span>${t.minutes} min</span>${tag}</div>${status?`<small class="saved ${intent?.failed?'pending':''}">${status}</small>`:''}${t.next_review?`<small>Próximo repaso: ${esc(t.next_review)}</small>`:''}</div><button class="check ${complete?'done':''}" data-task="${esc(t.id)}" aria-label="${complete?'Completada: ':'Completar: '}${esc(t.title)}" ${complete?'disabled':''}>${complete?'✓':'<span></span>'}</button></article>`;
+  if(t.extra)tag+='<span class="tag green">Extra · '+(t.done?'Comida ganada':' +1 comida al completar')+'</span>';
+  const duration=t.done&&t.actual_minutes!=null?`${t.actual_minutes} min reales`:`${t.minutes} min previstos`;
+  return `<article class="task ${complete?'completed':''}"><div class="taskCopy"><b>${esc(t.title)}</b><small>${esc(t.detail)}</small><div class="taskMeta"><span>${duration}</span>${tag}</div>${status?`<small class="saved ${intent?.failed?'pending':''}">${status}</small>`:''}${t.next_review?`<small>Próximo repaso: ${esc(t.next_review)}</small>`:''}</div><button class="check ${complete?'done':''}" data-task="${esc(t.id)}" aria-label="${complete?'Completada: ':'Completar: '}${esc(t.title)}" ${complete?'disabled':''}>${complete?'✓':'<span></span>'}</button></article>`;
  }).join('')||'<div class="empty"><b>Tu siguiente paso empieza aquí</b><p>Configura tu oposición y organiza una sesión a tu medida.</p></div>';
  document.querySelectorAll('[data-task]').forEach(button=>button.onclick=()=>clickTask(button.dataset.task,button));
  $('undoTask').hidden=!state.last_completion||pending.size>0;
@@ -108,7 +116,7 @@ function render(){
  if(opposition){
   $('oppositionName').textContent=opposition.name;
   $('topicList').innerHTML=opposition.topics.map((t,i)=>{const s=state.topics?.[i]||{},count=(t.blocks||[t.name]).length;const dates=Object.values(s.reviews||{}).map(r=>r.next_review).filter(Boolean).sort();return `<article class="topic"><b>${t.n||i+1}. ${esc(t.name)}</b><small>${Math.min(s.block||0,count)}/${count} bloques · ${s.score!=null?'Última nota: '+s.score+'%':'Sin test todavía'}${dates.length?' · Repaso '+esc(dates[0]):''}</small><div class="smallbar"><div style="width:${Math.min(100,(s.block||0)/count*100)}%"></div></div></article>`;}).join('');
-  $('academyTopics').innerHTML=opposition.topics.map((t,i)=>`<label class="academyTopic"><input type="checkbox" value="${i}" ${(state.academy_selected||[]).includes(i)?'checked':''}><span>${t.n||i+1}. ${esc(t.name)}</span></label>`).join('');
+  $('academyTopics').innerHTML=opposition.topics.map((t,i)=>`<label class="academyTopic"><input type="checkbox" value="${i}" ${(academyDraft??state.academy_selected??[]).includes(i)?'checked':''}><span>${t.n||i+1}. ${esc(t.name)}</span></label>`).join('');
  }
  for(const button of document.querySelectorAll('[data-pet]')){button.classList.toggle('selected',button.dataset.pet===state.pet.type);button.setAttribute('aria-pressed',button.dataset.pet===state.pet.type);}
  $('soundSwitch').checked=state.prefs.sound;$('animSwitch').checked=state.prefs.animations;
@@ -124,14 +132,14 @@ function clickTask(id,button){
  pendingTime={id,rect:button.getBoundingClientRect()};$('actualMinutes').value='';$('timeOverlay').showModal();$('actualMinutes').focus();
 }
 function complete(id,score,rect,actual_minutes){
- sound();if(rect)celebrate(rect);
+ sound();try{if(rect)celebrate(rect);}catch(error){console.warn('Animación no disponible',error.name);}
  pending.set(id,{id,score,actual_minutes});rememberPending();render();submitCompletion(id);
 }
 function submitCompletion(id){
  enqueue(async()=>{
   const intent=pending.get(id);if(!intent)return;
   intent.failed=false;render();
-  try{state=await api('/api/tasks/'+encodeURIComponent(id)+'/complete',{method:'POST',body:{score:intent.score,actual_minutes:intent.actual_minutes}});pending.delete(id);rememberPending();render();notice('Guardado. Un paso más hacia tu objetivo.');}
+  try{const wasHatched=!!state.pet.hatched,previousStage=stage();state=await api('/api/tasks/'+encodeURIComponent(id)+'/complete',{method:'POST',body:{score:intent.score,actual_minutes:intent.actual_minutes}});pending.delete(id);rememberPending();render();if(!wasHatched&&state.pet.hatched){$('careStatus').textContent='¡Ha nacido '+names[state.pet.type]+'! Objetivo completado.';}else if(stage()>previousStage)sendPet('react',{reaction:'milestone'});notice('Guardado. Un paso más hacia tu objetivo.');}
   catch(error){
    if(error.status&&error.status!==401)pending.delete(id);else intent.failed=true;
    rememberPending();render();throw error;
@@ -145,12 +153,11 @@ function fillSettings(){
 function showScreen(name){
  screen=name;for(const n of ['Today','Progress','Syllabus','Companion','Profile'])$('screen'+n).hidden=n!==name;
  for(const b of document.querySelectorAll('[data-screen]')){b.classList.toggle('active',b.dataset.screen===name);if(b.dataset.screen===name)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');}
- if(name==='Profile')fillSettings();sendPet('visibility',{visible:name==='Today'});
+ if(name==='Profile')fillSettings();sendPet('visibility',{visible:name==='Today'&&!document.hidden});if(name==='Today')sendPet('react',{reaction:'curious'});
 }
 async function plan(replan=false,profile=state){
  const s=profile.settings;
  if(!s.exam_date){showScreen('Profile');notice('Indica la fecha del examen para preparar tu plan.');return;}
- if(profile.mode==='academy'&&!profile.academy_selected?.length){showScreen('Profile');notice('Marca los temas de academia que tocan hoy.');return;}
  state=await api('/api/plan/today',{method:'POST',body:{opposition_id:state.selected,minutes:s.minutes_default||180,mode:profile.mode||'free',academy_topic_indexes:profile.academy_selected||[],exam_date:s.exam_date,days_per_week:s.days_per_week||6,target_rounds:s.target_rounds||3,target_score:s.target_score||80,revision:state._revision??0,replan}});render();return true;
 }
 async function saveSnapshot(patch){
@@ -199,7 +206,71 @@ async function choose(choice){
 }
 document.querySelectorAll('[data-screen]').forEach(b=>b.onclick=()=>showScreen(b.dataset.screen));
 $('authForm').onsubmit=e=>{e.preventDefault();auth('/api/login');};$('signup').onclick=()=>auth('/api/register');
-$('regen').onclick=()=>enqueue(()=>plan(true));
+
+function renderCare(){
+ const p=state.pet||{},hatched=!!p.hatched;
+ $('petName').textContent=hatched?names[p.type]:'Huevo de '+names[p.type||'auri'];
+ $('petHero').hidden=petReady||!hatched;$('eggFallback').hidden=petReady||hatched;
+ $('adoptEgg').hidden=!!p.egg_started||hatched;$('hatchEgg').hidden=true;
+ $('eggFallback').dataset.cracks=p.egg_stage||0;
+ $('hatchEgg').textContent=(p.egg_tasks||0)>=3?'Abrir el huevo':'Huevo · '+Math.min(3,p.egg_tasks||0)+'/3 tareas';
+ $('feedPet').hidden=!hatched;$('feedPet').textContent='Darle de comer · '+(p.food||0)+(p.food===1?' ración':' raciones');
+ $('petStats').textContent=hatched?`Etapa ${stage()}/5 · Crecimiento ${p.growth||0} · Alegría ${p.happiness??50}/100`:(p.egg_stage?'La cáscara se está abriendo. Completa tu objetivo de estudio para conocer a tu compañero.':'Tu primera tarea agrietará el huevo. Al completar el objetivo del primer día, nacerá.');
+ $('strokePet').setAttribute('aria-label',hatched?'Acariciar a '+names[p.type]:'Acariciar el huevo');
+}
+async function careAction(action,kind){
+ state=await api('/api/pet/care',{method:'POST',body:{action,kind:kind||state.pet.type,revision:state._revision??0}});render();
+ $('careStatus').textContent=action==='feed'?'¡Qué rico! +2 de crecimiento y +10 de alegría.':action==='hatch'?'¡Ha nacido '+names[state.pet.type]+'!':action==='adopt'?'Tu huevo te acompaña. Nacerá al completar el objetivo de tu primer día.':'Le encanta que lo acaricies. ♥';
+ sendPet('react',{reaction:action==='feed'?'eat':'stroke'});
+}
+$('adoptEgg').onclick=()=>$('eggDialog').showModal();
+$('cancelEgg').onclick=()=>$('eggDialog').close();
+document.querySelectorAll('[data-egg]').forEach(b=>b.onclick=()=>enqueue(async()=>{await careAction('adopt',b.dataset.egg);$('eggDialog').close();}));
+$('hatchEgg').onclick=()=>{sound();enqueue(()=>careAction('hatch'));};
+$('feedPet').onclick=()=>{if(!(state.pet.food>0)){$('careStatus').textContent='Completa una tarea extra para ganar comida.';return;}sound();sendPet('react',{reaction:'eat'});enqueue(()=>careAction('feed'));};
+let lastStroke=0,strokeStart=null;
+function stroke(){
+ const now=Date.now();if(now-lastStroke<700)return;lastStroke=now;
+ sound('pet');sendPet('react',{reaction:'stroke'});$('careStatus').textContent=state.pet.hatched?'♥ Le encanta que lo acaricies.':'Tu huevo se siente acompañado. ♥';
+ if(!writing)enqueue(()=>careAction('stroke'));
+}
+$('strokePet').onclick=stroke;
+$('strokePet').onpointerdown=e=>{strokeStart={x:e.clientX,y:e.clientY};};
+$('strokePet').onpointermove=e=>{if(strokeStart&&Math.hypot(e.clientX-strokeStart.x,e.clientY-strokeStart.y)>15){stroke();strokeStart={x:e.clientX,y:e.clientY};}};
+$('strokePet').onpointerup=$('strokePet').onpointercancel=$('strokePet').onpointerleave=()=>{strokeStart=null;};
+let extraRequestId;
+$('addExtra').onclick=()=>{
+ if(!opposition){notice('Configura primero tu oposición.',true);return;}
+ $('extraTopic').innerHTML=opposition.topics.map((t,i)=>`<option value="${i}">${i+1}. ${esc(t.name)}</option>`).join('');
+ extraRequestId=crypto.randomUUID();$('extraError').textContent='';$('extraDialog').showModal();
+};
+$('cancelExtra').onclick=()=>$('extraDialog').close();
+$('extraForm').onsubmit=e=>{e.preventDefault();const topic=+$('extraTopic').value,minutes=+$('extraMinutes').value,request_id=extraRequestId;enqueue(async()=>{
+ try{state=await api('/api/tasks/extra',{method:'POST',body:{topic_index:topic,minutes,request_id,revision:state._revision??0}});render();$('extraDialog').close();$('todayPlanStatus').textContent='Sesión extra añadida. Cada tarea extra completada da una ración de comida.';}
+ catch(error){$('extraError').textContent=error.message;throw error;}
+});};
+$('chooseAcademy').onclick=()=>{
+ if(!opposition){notice('Configura primero tu oposición.',true);return;}
+ $('dayAcademyTopics').innerHTML=opposition.topics.map((t,i)=>`<label class="academyTopic"><input type="checkbox" value="${i}" ${(state.academy_selected||[]).includes(i)?'checked':''}><span>${i+1}. ${esc(t.name)}</span></label>`).join('');
+ $('dayAcademyError').textContent='';$('academyDialog').showModal();
+};
+$('cancelAcademy').onclick=()=>$('academyDialog').close();
+$('dayAcademyForm').onsubmit=e=>{e.preventDefault();const topics=[...$('dayAcademyTopics').querySelectorAll('input:checked')].map(x=>+x.value);enqueue(async()=>{
+ try{if(await plan(true,{...state,mode:'academy',academy_selected:topics})){academyDraft=null;$('academyDialog').close();$('todayPlanStatus').textContent='Temas de academia preparados para hoy. Puedes añadir sesiones extra cuando quieras.';}}
+ catch(error){$('dayAcademyError').textContent=error.message;throw error;}
+});};
+
+$('regen').onclick=()=>enqueue(async()=>{
+ $('todayPlanStatus').textContent='Reorganizando tu plan…';$('regen').textContent='Reorganizando…';
+ try{
+  const profile=academyDraft===null?state:{...state,mode:'academy',academy_selected:[...academyDraft]};
+  if(await plan(true,profile)){
+   const count=state.tasks.filter(t=>!t.done).length;
+   $('todayPlanStatus').textContent=count?`Plan actualizado: ${count} tareas pendientes.`:'No quedan tareas pendientes. Marca otro tema en Perfil para añadirlo a Hoy.';
+  }else $('todayPlanStatus').textContent='Revisa la configuración indicada en Perfil.';
+ }catch(error){$('todayPlanStatus').textContent='No se pudo reorganizar. '+error.message;throw error;}
+ finally{$('regen').textContent='Reorganizar lo pendiente';}
+});
 $('undoTask').onclick=()=>enqueue(async()=>{const id=state.last_completion?.id;if(!id)return;state=await api('/api/tasks/'+encodeURIComponent(id)+'/undo',{method:'POST',body:{revision:state._revision??0}});render();notice('Se ha deshecho la última tarea y su recompensa.');});
 $('retry').onclick=()=>{for(const [id,i] of pending)if(i.failed)submitCompletion(id);};
 $('scoreForm').onsubmit=e=>{e.preventDefault();if(!pendingTest||!$('scoreForm').reportValidity())return;const score=Number($('scoreInput').value),p=pendingTest;pendingTest=null;$('scoreOverlay').close();complete(p.id,score,p.rect, $('testMinutes').value?Number($('testMinutes').value):undefined);};
@@ -210,7 +281,31 @@ $('cancelScore').onclick=()=>{$('scoreOverlay').close();pendingTest=null;};$('sc
 $('settingsForm').onsubmit=e=>{
  e.preventDefault();if(!$('settingsForm').reportValidity())return;
  const patch={settings:{...state.settings,exam_date:$('exam').value,minutes_default:+$('minutes').value,minutes_today:+$('minutes').value,days_per_week:+$('daysWeek').value,target_rounds:+$('rounds').value,target_score:+$('targetInput').value},mode:$('studyMode').value,academy_selected:[...document.querySelectorAll('#academyTopics input:checked')].map(x=>+x.value)};
- enqueue(async()=>{if(await plan(true,patch)){showScreen('Today');notice('Selección aplicada. Hoy está actualizado; lo completado se conserva.');}});
+ enqueue(async()=>{if(await plan(true,patch)){academyDraft=null;$('academySelectionStatus').textContent='Selección guardada.';showScreen('Today');notice('Todos los temas seleccionados están aplicados a Hoy. Lo completado se conserva.');}});
+};
+$('academyTopics').onchange=()=>{
+ academyDraft=[...document.querySelectorAll('#academyTopics input:checked')].map(x=>+x.value);
+ const edit=++academyEdit,topics=[...academyDraft];
+ $('academySelectionStatus').textContent='Guardando selección y actualizando Hoy…';
+ $('todayPlanStatus').textContent='Actualizando los temas seleccionados…';
+ enqueue(async()=>{
+  if(edit!==academyEdit)return; // Coalesce clicks waiting behind an in-flight save.
+  try{
+   const applied=await plan(true,{...state,mode:'academy',academy_selected:topics});
+   if(edit!==academyEdit)return;
+   if(applied){
+    academyDraft=null;
+    const message=topics.length?`${topics.length} temas guardados. Ya están en Hoy.`:'Selección guardada. No hay temas de academia pendientes; lo completado se conserva.';
+    $('academySelectionStatus').textContent=message;$('todayPlanStatus').textContent=message;
+   }else{
+    $('academySelectionStatus').textContent='No se ha guardado: completa la configuración de estudio.';
+    $('todayPlanStatus').textContent=$('academySelectionStatus').textContent;
+   }
+  }catch(error){
+   if(edit===academyEdit){$('academySelectionStatus').textContent='No se ha podido guardar. '+error.message;$('todayPlanStatus').textContent=$('academySelectionStatus').textContent;}
+   throw error;
+  }
+ });
 };
 $('studyMode').onchange=()=>{$('academyCard').hidden=$('studyMode').value!=='academy';};
 for(const [id,key] of [['soundSwitch','sound'],['animSwitch','animations']])$(id).onchange=()=>{const value=$(id).checked;state.prefs[key]=value;syncPet();enqueue(()=>saveSnapshot({prefs:{...state.prefs,[key]:value}}));};
@@ -230,3 +325,6 @@ window.addEventListener('focus',()=>{if(user&&!writing&&!pending.size)enqueue(as
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'}).catch(error=>console.warn('PWA:',error.name));
 setTimeout(()=>{if(!petReady)$('threeStatus').textContent='Vista sencilla';},8000);
 boot();
+
+matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',()=>syncPet());
+document.addEventListener('visibilitychange',()=>sendPet('visibility',{visible:screen==='Today'&&!document.hidden}));

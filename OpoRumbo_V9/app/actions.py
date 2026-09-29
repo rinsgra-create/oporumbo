@@ -5,7 +5,7 @@ from copy import deepcopy
 from fastapi import HTTPException
 from .workload import coverage, test_coverage, record_session
 from .planner import record_test, roadmap, _due_reviews, _today
-from .pet import companion
+from .pet import companion, study_birth, STUDY_KINDS
 
 
 def identify_tasks(progress):
@@ -70,8 +70,9 @@ def complete_task(progress, opposition, task_id, score=None, actual_minutes=None
     pet["energy"] = min(100, int(pet.get("energy", 100)) + 6)
     pet["totalCompleted"] = int(pet.get("totalCompleted", 0)) + 1
     pet['growth'] += 1
-    undo['egg_gain']=int(pet['egg_started'] and not pet['hatched'])
+    undo['egg_gain']=int(not pet['hatched'] and kind in STUDY_KINDS)
     pet['egg_tasks'] += undo['egg_gain']
+    study_birth(progress, task)
     if task.get('extra'):
         pet['food'] += 1
         pet['food_earned'] += 1
@@ -101,6 +102,10 @@ def undo_last_task(progress, opposition, task_id):
     pet['food_earned'] -= reward
     pet['growth'] = max(0,pet['growth']-1)
     pet['egg_tasks'] = max(0,pet['egg_tasks']-undo.get('egg_gain',0))
+    if task_id in pet['birth_completed']:
+        pet['birth_completed'].remove(task_id)
+    if not pet['hatched']:
+        pet['egg_stage'] = min(2, pet['egg_tasks'])
     progress["xp"]=max(0,progress.get("xp",0)-task.get("xp",0))
     if undo["topic_before"] is None:progress.get("topics",{}).pop(key,None)
     else:progress.setdefault("topics",{})[key]=undo["topic_before"]

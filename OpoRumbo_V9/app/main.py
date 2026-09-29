@@ -11,13 +11,13 @@ from uuid import uuid4
 from .db import init_db,register,login,user_from_token,get_progress,mutate_progress,ProgressConflict
 from .workload import weights, earned_minutes
 from .actions import identify_tasks,complete_task,undo_last_task
-from .pet import companion,care
+from .pet import companion,care,upgrade_birth
 from .planner import make_day,record_test,roadmap,_today
 from .researcher import search_catalog,search_boe,inspect_boe
 
 BASE=Path(__file__).resolve().parent
 CATALOG=json.loads((BASE/"catalog.json").read_text(encoding="utf-8"))
-app=FastAPI(title="OpoRumbo",version="20.0")
+app=FastAPI(title="OpoRumbo",version="20.1")
 init_db()
 
 @app.exception_handler(ProgressConflict)
@@ -100,6 +100,7 @@ def get_opp_for_progress(p, oid):
     return next((o for o in CATALOG if o["id"]==oid),None)
 
 def refresh_workload(p):
+    upgrade_birth(p)
     o=get_opp_for_progress(p,p.get("selected"))
     if o and p.get("settings"):
         s=p["settings"]
@@ -110,7 +111,7 @@ def refresh_workload(p):
         p.setdefault("workload_anchor",{"date":_today().isoformat(),"required_minutes":p["roadmap"]["estimated_minutes_required"],"earned_minutes":earned_minutes(o,p,s.get("target_rounds",3)),"target_rounds":s.get("target_rounds",3),"daily_minutes":s.get("minutes_default",180),"days_per_week":s.get("days_per_week",6)})
 
 @app.get("/api/health")
-def health():return {"ok":True,"version":"20.0"}
+def health():return {"ok":True,"version":"20.1"}
 
 @app.post("/api/register")
 def api_register(x:AuthReq):
@@ -130,7 +131,13 @@ def me(authorization:str|None=Header(None)):return require_user(authorization)
 
 @app.get("/api/progress")
 def progress(authorization:str|None=Header(None)):
-    u=require_user(authorization);p=get_progress(u["id"]);identify_tasks(p);companion(p);refresh_workload(p);return p
+    u=require_user(authorization);p=get_progress(u["id"])
+    if p.get('pet', {}).get('birth_schema') != 201:
+        def upgrade(data):
+            identify_tasks(data)
+            upgrade_birth(data)
+        p=mutate_progress(u['id'],upgrade)
+    identify_tasks(p);companion(p);refresh_workload(p);return p
 
 @app.put("/api/progress")
 def save(x:SaveReq,authorization:str|None=Header(None)):
@@ -138,7 +145,10 @@ def save(x:SaveReq,authorization:str|None=Header(None)):
     def change(p):
         # Preserve compatibility with the legacy full-state payload, but reject
         # stale snapshots instead of silently erasing a newer device's work.
+        upgrade_birth(p)
+        birth = {k: companion(p)[k] for k in ("hatched", "egg_stage", "first_study_date", "hatched_at", "first_day_goal", "birth_completed", "egg_tasks", "egg_started", "adopted", "birth_schema")}
         p.update(x.data)
+        p.setdefault("pet", {}).update(birth)
         refresh_workload(p)
     p=mutate_progress(u["id"],change,int(x.data.get("_revision",0)))
     return {"ok":True,"progress":p}
