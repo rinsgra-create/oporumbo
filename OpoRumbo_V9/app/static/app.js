@@ -6,6 +6,7 @@ let token=['or18','or15','or14','or13','or12','or11','or9'].map(k=>localStorage.
 let state={},opposition=null,user=null,screen='Today',selectedOpp=null,pendingTest=null,pendingTime=null,configuringOpp=false;
 let pending=new Map(),queue=Promise.resolve(),writing=0,petReady=false,audioContext;
 let academyDraft=null;
+let selectionRequest=0;
 let academyEdit=0;
 const names={auri:'Auri',nexo:'Nexo',bruma:'Bruma'};
 const today=()=>new Date().toLocaleDateString('en-CA');
@@ -170,7 +171,7 @@ async function boot(){
   opposition=state.selected?await api('/api/oppositions/'+encodeURIComponent(state.selected)):null;
   $('authCard').hidden=true;$('app').hidden=false;$('nav').hidden=false;$('accountEmail').textContent=user.email;
   try{pending=new Map(JSON.parse(localStorage.getItem('or-pending-'+user.id)||'[]').map(i=>[i.id,{...i,failed:true}]));}catch{pending=new Map();}
-  render();fillSettings();
+  render();fillSettings();loadCatalog();
   // Do not replace an unconfirmed task list before retrying its durable intents.
   for(const id of pending.keys())submitCompletion(id);
   if(state.settings.exam_date)await enqueue(()=>plan(false));
@@ -183,6 +184,17 @@ async function auth(path){
  catch(error){notice(error.message,true);}
  finally{$('signin').disabled=$('signup').disabled=false;}
 }
+async function loadCatalog(){
+ const select=$('catalogOpp');select.disabled=true;$('retryCatalog').hidden=true;
+ try{
+  const catalog=await api('/api/oppositions');
+  select.innerHTML='<option value="">Selecciona una oposición</option>'+catalog.map(o=>`<option value="${esc(o.id)}">${esc(o.name)} · ${o.topics} temas</option>`).join('');
+  select.disabled=!catalog.length;
+  $('catalogStatus').textContent=catalog.length?'Elige un programa cargado y revisa su temario antes de configurar el plan.':'Todavía no hay programas disponibles en el catálogo.';
+ }catch(error){select.innerHTML='<option value="">Catálogo no disponible</option>';$('catalogStatus').textContent='No se ha podido cargar el catálogo. Puedes reintentarlo.';$('retryCatalog').hidden=false;}
+}
+$('retryCatalog').onclick=loadCatalog;
+$('catalogOpp').onchange=()=>{if($('catalogOpp').value)choose({kind:'catalog',id:$('catalogOpp').value});else{selectionRequest++;selectedOpp=null;$('setupDetails').hidden=true;}};
 async function search(){
  const q=$('searchOpp').value.trim();if(q.length<3){notice('Escribe al menos tres caracteres.',true);return;}
  $('searchButton').disabled=true;$('searchResults').textContent='Buscando en fuentes oficiales…';
@@ -196,12 +208,14 @@ async function search(){
  finally{$('searchButton').disabled=false;}
 }
 async function choose(choice){
+ const request=++selectionRequest;selectedOpp=null;$('setupDetails').hidden=true;
  try{
-  const result=await api('/api/research/select',{method:'POST',body:{kind:choice.kind,catalog_id:choice.id,boe_id:choice.boe_id}});selectedOpp=result.opposition;
+  const result=await api('/api/research/select',{method:'POST',body:{kind:choice.kind,catalog_id:choice.id,boe_id:choice.boe_id}});if(request!==selectionRequest)return;selectedOpp=result.opposition;
   $('selectedName').textContent=selectedOpp.name;
-  $('sourceStatus').textContent=result.status==='automatic_extraction'?'Extracción preliminar: revisa el programa oficial antes de confirmar.':'Programa de referencia del catálogo. Su vigencia para tu convocatoria no está verificada.';
-  const link=$('sourceLink');link.hidden=!selectedOpp.source_url;link.href=selectedOpp.source_url?.startsWith('https://www.boe.es/')?selectedOpp.source_url:'https://www.boe.es/';
-  $('selectedTopics').textContent=selectedOpp.topics.map(t=>`${t.n}. ${t.name}`).join('\n');$('confirmOpp').checked=false;$('setupDetails').hidden=false;
+  $('sourceStatus').textContent=result.status==='automatic_extraction'?'Extracción preliminar: revisa el programa oficial antes de confirmar.':result.status==='official_program'?`${selectedOpp.year} · ${selectedOpp.source_name}. Programa revisado el ${selectedOpp.reviewed_at}. No indica que el plazo de inscripción esté abierto. ${selectedOpp.program_note||''} Se carga el índice para planificar; utiliza tu material de estudio.`:result.status==='official_reference'?`${selectedOpp.year}. Referencia histórica revisada el ${selectedOpp.reviewed_at}. ${selectedOpp.program_note||''}`:'Programa de referencia del catálogo. Su vigencia para tu convocatoria no está verificada.';
+  const link=$('sourceLink');link.hidden=!selectedOpp.source_url;link.href=['https://www.boe.es/','https://www.correos.com/'].some(prefix=>selectedOpp.source_url?.startsWith(prefix))?selectedOpp.source_url:'https://www.boe.es/';
+  const syllabus=$('syllabusLink');syllabus.hidden=!selectedOpp.syllabus_url;syllabus.href=['https://web.guardiacivil.es/','https://cswetwebcorsta01.blob.core.windows.net/uploads/'].some(prefix=>selectedOpp.syllabus_url?.startsWith(prefix))?selectedOpp.syllabus_url:'https://www.boe.es/';
+  $('selectedTopics').textContent=selectedOpp.topics.map(t=>`${t.n}. ${t.name}${t.section?' ['+t.section+' · '+t.official_n+']':''}`).join('\n');$('confirmOpp').checked=false;$('setupDetails').hidden=false;
  }catch(error){notice(error.message,true);}
 }
 document.querySelectorAll('[data-screen]').forEach(b=>b.onclick=()=>showScreen(b.dataset.screen));
@@ -318,7 +332,7 @@ $('setupForm').onsubmit=e=>{
   opposition=selectedOpp;configuringOpp=false;render();fillSettings();notice('Oposición configurada.');await plan(false);if(state.mode!=='academy')showScreen('Today');
  });
 };
-$('changeOpp').onclick=()=>{configuringOpp=true;$('onboarding').hidden=false;showScreen('Today');$('searchOpp').focus();};
+$('changeOpp').onclick=()=>{configuringOpp=true;$('onboarding').hidden=false;showScreen('Today');$('catalogOpp').focus();};
 $('logout').onclick=()=>{if(writing){notice('Espera a que terminen los guardados.');return;}for(const k of ['or18','or15','or14','or13','or12','or11','or9'])localStorage.removeItem(k);location.reload();};
 window.addEventListener('online',()=>{for(const [id,i] of pending)if(i.failed)submitCompletion(id);});
 window.addEventListener('focus',()=>{if(user&&!writing&&!pending.size)enqueue(async()=>{await refreshProgress();await plan(false);});});

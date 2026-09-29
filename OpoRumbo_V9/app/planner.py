@@ -162,7 +162,7 @@ def roadmap(opposition, progress, exam_date, days_per_week=6, target_rounds=3):
 
 def make_day(opposition, minutes, progress, mode="free", academy_topic_indexes=None,
              exam_date=None, days_per_week=6, target_rounds=3, completed_tasks=None):
-    from .workload import weights, pace, coverage, test_coverage, unit
+    from .workload import weights, pace, coverage, test_coverage, unit, practice_kinds
     minutes = max(0, int(minutes))
     target = progress.get("settings", {}).get("target_score", 80)
     personal = pace(progress)
@@ -251,12 +251,12 @@ def make_day(opposition, minutes, progress, mode="free", academy_topic_indexes=N
         w=min(candidates,key=lambda w:(min(coverage(_topic_state(progress,w["topic_index"]),w["block_index"]),test_coverage(_topic_state(progress,w["topic_index"]),w["block_index"])),
             -_topic_priority(opposition["topics"][w["topic_index"]],_topic_state(progress,w["topic_index"]),target)))
         # Reserve practice for the catalogue opposition that includes these exams.
-        reserve=min(30,remaining//4) if opposition.get("id")=="cabo_gc" and remaining>=60 else 0
+        reserve=min(30,remaining//4) if practice_kinds(opposition) and remaining>=60 else 0
         remaining-=reserve
         pair(w,"study")
         remaining+=reserve
-    if opposition.get("id")=="cabo_gc":
+    if practice_kinds(opposition):
         for kind,title in (("english","Inglés"),("psy","Psicotécnicos")):
-            if remaining>=1:
+            if kind in practice_kinds(opposition) and remaining>=1:
                 append(kind,{"label":"Práctica + mini test"},15,kind,title,cap=max(1,remaining//2) if kind=="english" else remaining)
     return {"tasks":tasks, "roadmap":roadmap(opposition,progress,exam_date,days_per_week,target_rounds),"due_reviews":len(due)}

@@ -1,5 +1,5 @@
 import * as THREE from './vendor/three.module.js';
-import {createCompanion} from './companion-model.js?v=20.1';
+import {createCompanion} from './companion-model.js?v=20.2';
 
 export function start(){
  const notify=(type,extra={})=>parent.postMessage({type,...extra},location.origin);

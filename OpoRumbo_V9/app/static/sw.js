@@ -1,4 +1,4 @@
-const CACHE='oporumbo-static-v20.1';
+const CACHE='oporumbo-static-v21.1';
 self.addEventListener('install',()=>self.skipWaiting());
 self.addEventListener('activate',event=>event.waitUntil((async()=>{
  for(const name of await caches.keys())if(name.startsWith('oporumbo-')&&name!==CACHE)await caches.delete(name);

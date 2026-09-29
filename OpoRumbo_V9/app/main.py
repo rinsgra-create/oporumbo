@@ -17,7 +17,7 @@ from .researcher import search_catalog,search_boe,inspect_boe
 
 BASE=Path(__file__).resolve().parent
 CATALOG=json.loads((BASE/"catalog.json").read_text(encoding="utf-8"))
-app=FastAPI(title="OpoRumbo",version="20.1")
+app=FastAPI(title="OpoRumbo",version="21.1")
 init_db()
 
 @app.exception_handler(ProgressConflict)
@@ -111,7 +111,7 @@ def refresh_workload(p):
         p.setdefault("workload_anchor",{"date":_today().isoformat(),"required_minutes":p["roadmap"]["estimated_minutes_required"],"earned_minutes":earned_minutes(o,p,s.get("target_rounds",3)),"target_rounds":s.get("target_rounds",3),"daily_minutes":s.get("minutes_default",180),"days_per_week":s.get("days_per_week",6)})
 
 @app.get("/api/health")
-def health():return {"ok":True,"version":"20.1"}
+def health():return {"ok":True,"version":"21.1"}
 
 @app.post("/api/register")
 def api_register(x:AuthReq):
@@ -183,7 +183,7 @@ async def research_select(x:ResearchSelectReq,authorization:str|None=Header(None
     if x.kind=="catalog" and x.catalog_id:
         o=next((o for o in CATALOG if o["id"]==x.catalog_id),None)
         if not o:raise HTTPException(404,"Oposición no encontrada")
-        return {"opposition":o,"status":"catalog_reference"}
+        return {"opposition":o,"status":o.get("catalog_status","catalog_reference")}
     if x.kind=="boe" and x.boe_id:
         try:o=await inspect_boe(x.boe_id)
         except Exception:raise HTTPException(502,"No se pudo leer el documento BOE")
@@ -208,7 +208,8 @@ def setup(x:SetupReq,authorization:str|None=Header(None)):
         if not same:
             p.pop("last_completion",None)
             p.setdefault("opposition_history",[]).append({"selected":old_id,"topics":p.get("topics",{}),"tasks":p.get("tasks",[]),"custom_opposition":p.get("custom_opposition"),"pacing":p.get("pacing"),"practice_credit":p.get("practice_credit"),"workload_anchor":p.get("workload_anchor"),"saved_on":_today().isoformat()})
-            p["topics"]={};p["tasks"]=[];p.pop("plan_date",None)
+            p["opposition_history"][-1]["academy_selected"]=p.get("academy_selected",[])
+            p["topics"]={};p["tasks"]=[];p["academy_selected"]=[];p.pop("plan_date",None)
             for key in ("pacing","practice_credit","workload_anchor"):p.pop(key,None)
         p["selected"]=new_id
         if new_id=="custom_researched":

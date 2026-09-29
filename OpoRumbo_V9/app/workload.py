@@ -19,6 +19,12 @@ CONFIG = {
 CATEGORIES = ("study", "review", "test", "english", "psy")
 
 
+def practice_kinds(opposition):
+    """Only supported practices declared by the program; preserve legacy Cabo."""
+    requested=opposition.get("practice_kinds", ["english","psy"] if opposition.get("id")=="cabo_gc" else [])
+    return tuple(k for k in ("english","psy") if k in requested)
+
+
 def blocks(topic):
     return topic.get("blocks") or [topic.get("name", "Bloque")]
 
@@ -177,10 +183,10 @@ def estimate(opposition, progress, exam_date, days_per_week, target_rounds, toda
         details.append({**w, "completed_rounds": round(done, 3), "remaining_minutes": round(per_round[rounds]),
             "future_review_count": future_reviews, "review_reserve_minutes": round(review_budget), "last_score": score})
     practice = {}
-    if opposition.get("id") == "cabo_gc":
+    if practice_kinds(opposition):
         for goal in range(1, 6):
             cost = 0
-            for kind in ("english", "psy"):
+            for kind in practice_kinds(opposition):
                 planned = len(ws)*goal*CONFIG["practice_minutes_per_block"]
                 credit = progress.get("practice_credit", {}).get(kind, 0)
                 cost += max(0, planned-credit)*personal[kind]["factor"]
@@ -215,7 +221,7 @@ def estimate(opposition, progress, exam_date, days_per_week, target_rounds, toda
     return {"schema": SCHEMA, "days_left": days if exam else None, "study_days_left": study_days,
         "total_blocks": len(ws), "completed_first_blocks": round(first, 2),
         "first_round_pct": round(first/max(1,len(ws))*100), "completed_rounds": math.floor(min(complete, default=0)),
-        "target_rounds": rounds, "initial_minutes": round(sum(unit(w["weight"],r)+unit(w["weight"],r,"test") for w in ws for r in range(rounds)) + (len(ws)*rounds*20 if opposition.get("id")=="cabo_gc" else 0)), "estimated_minutes_required": math.ceil(required),
+        "target_rounds": rounds, "initial_minutes": round(sum(unit(w["weight"],r)+unit(w["weight"],r,"test") for w in ws for r in range(rounds)) + (len(ws)*rounds*CONFIG["practice_minutes_per_block"]*len(practice_kinds(opposition)))), "estimated_minutes_required": math.ceil(required),
         "required_minutes_per_study_day": need(required),
         "round_options": {str(r): need(requirements.get(r,0)) for r in (2,3,4)},
         "pace_sufficient": bool(exam and required <= capacity), "possible_rounds": possible,
