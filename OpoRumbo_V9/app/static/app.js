@@ -62,6 +62,7 @@ function sound(kind='reward'){
   // Short synthesis only: no downloads, continuous loops or awaited audio on saves.
   const play=()=>{
    if(state.prefs?.sound===false||document.hidden||audioContext.state!=='running')return;
+   if(['pet','feed','play'].includes(kind)&&window.PetVoice){window.PetVoice.play(audioContext,state.pet?.type||'auri',kind);return;}
    const now=audioContext.currentTime,voice={auri:1,nexo:.78,bruma:1.18}[state.pet?.type]||1,notes=(soundNotes[kind]||soundNotes.reward).map(f=>f*(kind==='pet'?voice:1));
    notes.forEach((f,i)=>{
     const o=audioContext.createOscillator(),g=audioContext.createGain(),start=now+i*(kind==='pet'?.14:.075);
@@ -356,7 +357,7 @@ $('academyTopics').onchange=()=>{
  });
 };
 $('studyMode').onchange=()=>{$('academyCard').hidden=$('studyMode').value!=='academy';};
-for(const [id,key] of [['soundSwitch','sound'],['animSwitch','animations']])$(id).onchange=()=>{const value=$(id).checked;state.prefs[key]=value;syncPet();enqueue(()=>saveSnapshot({prefs:{...state.prefs,[key]:value}}));};
+for(const [id,key] of [['soundSwitch','sound'],['animSwitch','animations']])$(id).onchange=()=>{const value=$(id).checked;state.prefs[key]=value;if(key==='sound'&&!value)window.PetVoice?.stop();syncPet();enqueue(()=>saveSnapshot({prefs:{...state.prefs,[key]:value}}));};
 document.querySelectorAll('[data-pet]').forEach(b=>b.onclick=()=>enqueue(()=>saveSnapshot({pet:{...state.pet,type:b.dataset.pet,name:names[b.dataset.pet]}})));
 $('searchForm').onsubmit=e=>{e.preventDefault();search();};
 $('setupForm').onsubmit=e=>{
