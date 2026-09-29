@@ -1,18 +1,35 @@
 
 from fastapi import FastAPI,HTTPException,Header
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from pydantic import BaseModel,EmailStr
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel,EmailStr,Field
+from typing import Literal
+from datetime import date
 from pathlib import Path
 import json
-from .db import init_db,register,login,user_from_token,get_progress,save_progress
-from .planner import make_day,record_test,roadmap
+from .db import init_db,register,login,user_from_token,get_progress,mutate_progress,ProgressConflict
+from .actions import identify_tasks,complete_task,undo_last_task
+from .planner import make_day,record_test,roadmap,_today
 from .researcher import search_catalog,search_boe,inspect_boe
 
 BASE=Path(__file__).resolve().parent
 CATALOG=json.loads((BASE/"catalog.json").read_text(encoding="utf-8"))
-app=FastAPI(title="OpoRumbo V14",version="14.0")
+app=FastAPI(title="OpoRumbo",version="18.0")
 init_db()
+
+@app.exception_handler(ProgressConflict)
+async def conflict_handler(request, exc):
+    return JSONResponse(status_code=409,content={"detail":str(exc)})
+
+@app.middleware("http")
+async def cache_policy(request, call_next):
+    response=await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"]="no-store"
+    elif request.url.path in ("/", "/sw.js") or request.url.path.endswith((".html", ".js", ".css", ".webmanifest")):
+        response.headers["Cache-Control"]="no-cache"
+    response.headers["X-Content-Type-Options"]="nosniff"
+    return response
 
 class AuthReq(BaseModel):
     email:EmailStr
@@ -25,25 +42,35 @@ class ResearchSelectReq(BaseModel):
     boe_id:str|None=None
 class SetupReq(BaseModel):
     opposition:dict
-    exam_date:str
-    days_per_week:int=6
-    minutes_per_day:int=180
-    target_rounds:int=3
-    target_score:int=80
-    mode:str="free"
+    exam_date:date
+    days_per_week:int=Field(6,ge=1,le=7)
+    minutes_per_day:int=Field(180,ge=30,le=720)
+    target_rounds:int=Field(3,ge=1,le=5)
+    target_score:int=Field(80,ge=50,le=100)
+    mode:Literal["free","academy"]="free"
+    revision:int=0
 class PlanReq(BaseModel):
     opposition_id:str
-    minutes:int=180
-    mode:str="free"
-    academy_topic_indexes:list[int]=[]
-    exam_date:str="2027-03-15"
-    days_per_week:int=6
-    target_rounds:int=3
+    minutes:int=Field(180,ge=30,le=720)
+    mode:Literal["free","academy"]="free"
+    academy_topic_indexes:list[int]=Field(default_factory=list)
+    exam_date:date
+    days_per_week:int=Field(6,ge=1,le=7)
+    target_rounds:int=Field(3,ge=1,le=5)
+    revision:int|None=None
+    replan:bool=False
 class TestResultReq(BaseModel):
     opposition_id:str
     topic_index:int
     block_index:int=0
-    score:int
+    score:int=Field(ge=0,le=100)
+    task_id:str|None=None
+
+class CompleteReq(BaseModel):
+    score:int|None=Field(None,ge=0,le=100)
+
+class UndoReq(BaseModel):
+    revision:int
 
 def require_user(a):
     if not a or not a.lower().startswith("bearer "):raise HTTPException(401,"Falta sesión")
@@ -57,7 +84,7 @@ def get_opp_for_progress(p, oid):
     return next((o for o in CATALOG if o["id"]==oid),None)
 
 @app.get("/api/health")
-def health():return {"ok":True,"version":"14.0"}
+def health():return {"ok":True,"version":"18.0"}
 
 @app.post("/api/register")
 def api_register(x:AuthReq):
@@ -77,11 +104,17 @@ def me(authorization:str|None=Header(None)):return require_user(authorization)
 
 @app.get("/api/progress")
 def progress(authorization:str|None=Header(None)):
-    u=require_user(authorization);return get_progress(u["id"])
+    u=require_user(authorization);p=get_progress(u["id"]);identify_tasks(p);return p
 
 @app.put("/api/progress")
 def save(x:SaveReq,authorization:str|None=Header(None)):
-    u=require_user(authorization);save_progress(u["id"],x.data);return {"ok":True}
+    u=require_user(authorization)
+    def change(p):
+        # Preserve compatibility with the legacy full-state payload, but reject
+        # stale snapshots instead of silently erasing a newer device's work.
+        p.update(x.data)
+    p=mutate_progress(u["id"],change,int(x.data.get("_revision",0)))
+    return {"ok":True,"progress":p}
 
 @app.get("/api/oppositions")
 def oppositions():
@@ -102,7 +135,10 @@ async def research_opposition(q:str,authorization:str|None=Header(None)):
     require_user(authorization)
     q=q.strip()
     if len(q)<3:raise HTTPException(400,"Escribe al menos 3 caracteres")
-    return {"query":q,"catalog":search_catalog(CATALOG,q),"boe":await search_boe(q)}
+    warning=None
+    try:boe=await search_boe(q)
+    except RuntimeError as e:boe=[];warning=str(e)
+    return {"query":q,"catalog":search_catalog(CATALOG,q),"boe":boe,"warning":warning}
 
 @app.post("/api/research/select")
 async def research_select(x:ResearchSelectReq,authorization:str|None=Header(None)):
@@ -110,7 +146,7 @@ async def research_select(x:ResearchSelectReq,authorization:str|None=Header(None
     if x.kind=="catalog" and x.catalog_id:
         o=next((o for o in CATALOG if o["id"]==x.catalog_id),None)
         if not o:raise HTTPException(404,"Oposición no encontrada")
-        return {"opposition":o,"status":"verified_catalog"}
+        return {"opposition":o,"status":"catalog_reference"}
     if x.kind=="boe" and x.boe_id:
         try:o=await inspect_boe(x.boe_id)
         except Exception:raise HTTPException(502,"No se pudo leer el documento BOE")
@@ -119,55 +155,107 @@ async def research_select(x:ResearchSelectReq,authorization:str|None=Header(None
 
 @app.post("/api/setup")
 def setup(x:SetupReq,authorization:str|None=Header(None)):
-    u=require_user(authorization);p=get_progress(u["id"]);o=x.opposition
-    if not o.get("topics"):raise HTTPException(400,"No se ha detectado un temario utilizable")
-    if o.get("id"):
-        p["selected"]=o["id"];p.pop("custom_opposition",None)
-    else:
-        o["id"]="custom_researched";p["selected"]="custom_researched";p["custom_opposition"]=o
-    p["setup_complete"]=True;p["mode"]=x.mode;p["academy_selected"]=[]
-    p["settings"]={
-        "exam_date":x.exam_date,
-        "days_per_week":x.days_per_week,
-        "target_rounds":x.target_rounds,
-        "minutes_today":x.minutes_per_day,
-        "minutes_default":x.minutes_per_day,
-        "target_score":max(50,min(100,x.target_score))
-    }
-    p["topics"]={};p["tasks"]=[]
-    save_progress(u["id"],p);return p
+    u=require_user(authorization)
+    if x.exam_date < _today():
+        raise HTTPException(422,"La fecha de examen no puede estar en el pasado")
+    def change(p):
+        o=x.opposition.copy()
+        if not o.get("topics"):
+            raise HTTPException(400,"No se ha detectado un temario utilizable")
+        if o.get("id") and o["id"] != "custom_researched":
+            o=next((v for v in CATALOG if v["id"]==o["id"]),None)
+            if not o:raise HTTPException(404,"Oposición no encontrada")
+        old_id=p.get("selected")
+        new_id=o.get("id") or "custom_researched"
+        same=old_id==new_id and (new_id!="custom_researched" or p.get("custom_opposition",{}).get("boe_id")==o.get("boe_id"))
+        if not same:
+            p.pop("last_completion",None)
+            p.setdefault("opposition_history",[]).append({"selected":old_id,"topics":p.get("topics",{}),"tasks":p.get("tasks",[]),"custom_opposition":p.get("custom_opposition"),"saved_on":_today().isoformat()})
+            p["topics"]={};p["tasks"]=[];p.pop("plan_date",None)
+        p["selected"]=new_id
+        if new_id=="custom_researched":
+            o["id"]=new_id;p["custom_opposition"]=o
+        p["setup_complete"]=True;p["mode"]=x.mode
+        p.setdefault("academy_selected",[])
+        p["settings"]={"exam_date":x.exam_date.isoformat(),"days_per_week":x.days_per_week,
+            "target_rounds":x.target_rounds,"minutes_today":x.minutes_per_day,
+            "minutes_default":x.minutes_per_day,"target_score":x.target_score}
+    return mutate_progress(u["id"],change,x.revision)
+
+@app.post("/api/tasks/{task_id}/complete")
+def finish(task_id:str,x:CompleteReq,authorization:str|None=Header(None)):
+    u=require_user(authorization)
+    def change(p):
+        opp=get_opp_for_progress(p,p.get("selected"))
+        if not opp:raise HTTPException(404,"Oposición no encontrada")
+        complete_task(p,opp,task_id,x.score)
+    return mutate_progress(u["id"],change)
 
 @app.post("/api/test/result")
 def test_result(x:TestResultReq,authorization:str|None=Header(None)):
-    u=require_user(authorization);p=get_progress(u["id"])
-    opp=get_opp_for_progress(p,x.opposition_id)
-    if not opp:raise HTTPException(404,"Oposición no encontrada")
-    if not 0<=x.topic_index<len(opp["topics"]):raise HTTPException(400,"Tema no válido")
-    target=int((p.get("settings") or {}).get("target_score",80))
-    rec=record_test(p,x.topic_index,x.block_index,x.score,target)
-    s=p.get("settings") or {}
-    p["roadmap"]=roadmap(opp,p,s.get("exam_date","2027-03-15"),s.get("days_per_week",6),s.get("target_rounds",3))
-    save_progress(u["id"],p)
-    return {"result":rec,"progress":p}
+    u=require_user(authorization)
+    result={}
+    def change(p):
+        opp=get_opp_for_progress(p,x.opposition_id)
+        if not opp or p.get("selected")!=x.opposition_id:raise HTTPException(404,"Oposición no encontrada")
+        if not 0<=x.topic_index<len(opp["topics"]):raise HTTPException(400,"Tema no válido")
+        blocks=opp["topics"][x.topic_index].get("blocks") or [""]
+        if not 0<=x.block_index<len(blocks):raise HTTPException(400,"Bloque no válido")
+        identify_tasks(p)
+        task=next((t for t in p.get("tasks",[]) if t.get("kind")=="test" and t.get("topic_index")==x.topic_index and t.get("block_index",0)==x.block_index and (not x.task_id or t["id"]==x.task_id)),None)
+        if task:
+            complete_task(p,opp,task["id"],x.score)
+            result.update(score=task.get("score"),next_review=task.get("next_review"))
+        else:
+            raise HTTPException(409,"Organiza el día antes de registrar este test")
+    p=mutate_progress(u["id"],change)
+    return {"result":result,"progress":p}
+
+@app.post("/api/tasks/{task_id}/undo")
+def undo(task_id:str,x:UndoReq,authorization:str|None=Header(None)):
+    u=require_user(authorization)
+    def change(p):
+        opp=get_opp_for_progress(p,p.get("selected"))
+        if not opp:raise HTTPException(404,"Oposición no encontrada")
+        undo_last_task(p,opp,task_id)
+    return mutate_progress(u["id"],change,x.revision)
 
 @app.post("/api/plan/today")
 def today(x:PlanReq,authorization:str|None=Header(None)):
-    u=require_user(authorization);p=get_progress(u["id"])
-    opp=get_opp_for_progress(p,x.opposition_id)
-    if not opp:raise HTTPException(404,"Oposición no encontrada")
-    p["selected"]=x.opposition_id;p["mode"]=x.mode;p["academy_selected"]=x.academy_topic_indexes
-    old=p.get("settings") or {}
-    p["settings"]={
-        "exam_date":x.exam_date,
-        "days_per_week":x.days_per_week,
-        "target_rounds":x.target_rounds,
-        "minutes_today":x.minutes,
-        "minutes_default":x.minutes,
-        "target_score":old.get("target_score",80)
-    }
-    result=make_day(opp,x.minutes,p,x.mode,x.academy_topic_indexes,x.exam_date,x.days_per_week,x.target_rounds)
-    p["tasks"]=result["tasks"];p["roadmap"]=result["roadmap"];p["due_reviews"]=result["due_reviews"]
-    save_progress(u["id"],p);return p
+    u=require_user(authorization)
+    def change(p):
+        opp=get_opp_for_progress(p,x.opposition_id)
+        if not opp or p.get("selected")!=x.opposition_id:raise HTTPException(404,"Oposición no encontrada")
+        if any(i<0 or i>=len(opp["topics"]) for i in x.academy_topic_indexes):
+            raise HTTPException(422,"Tema de academia no válido")
+        if x.mode=="academy" and not x.academy_topic_indexes:
+            raise HTTPException(422,"Marca los temas de academia que tocan hoy")
+        identify_tasks(p)
+        today_key=_today().isoformat()
+        same_day=p.get("plan_date",today_key)==today_key
+        if not same_day:p.pop("last_completion",None)
+        # Old deployments did not store the date. Adopt their current tasks once.
+        if same_day and p.get("tasks") and not x.replan:
+            p["plan_date"]=today_key
+            return
+        completed=[t for t in p.get("tasks",[]) if t.get("done")] if same_day else []
+        p["mode"]=x.mode;p["academy_selected"]=list(dict.fromkeys(x.academy_topic_indexes))
+        old=p.get("settings") or {}
+        p["settings"]={"exam_date":x.exam_date.isoformat(),"days_per_week":x.days_per_week,
+            "target_rounds":x.target_rounds,"minutes_today":x.minutes,"minutes_default":x.minutes,
+            "target_score":old.get("target_score",80)}
+        used=sum(t.get("minutes",0) for t in completed)
+        remaining=max(0,x.minutes-used)
+        result=make_day(opp,max(30,remaining),p,x.mode,p["academy_selected"],x.exam_date.isoformat(),x.days_per_week,x.target_rounds)
+        def key(t):return (t.get("kind"),t.get("topic_index"),t.get("block_index"))
+        done_keys={key(t) for t in completed}
+        fresh=[t for t in result["tasks"] if key(t) not in done_keys] if remaining>=30 else []
+        # A replan cannot erase completed work or grow today's core list forever.
+        p["tasks"]=completed+fresh[:max(0,5-len(completed))]
+        p["plan_date"]=today_key
+        identify_tasks(p)
+        p["roadmap"]=result["roadmap"];p["due_reviews"]=result["due_reviews"]
+    return mutate_progress(u["id"],change,x.revision)
 
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 @app.get("/")

@@ -1,498 +1,532 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#edf6ff">
-<link rel="manifest" href="/manifest.webmanifest">
-<title>OpoRumbo V16.2 estable</title>
-<style>
-:root{
-  --ink:#102544;--mut:#7388a7;--line:#dce8f3;--blue:#2f7ff4;
-  --green:#24b46c;--red:#e3565e;--orange:#e9a03b;--bg:#eef7ff;
-}
-*{box-sizing:border-box}
-body{margin:0;background:linear-gradient(#e3f2ff,#f8fbff 42%,#eef7ff);color:var(--ink);
-font-family:system-ui,-apple-system,Segoe UI,sans-serif}
-.shell{max-width:560px;margin:auto;min-height:100vh;padding:14px 14px 92px}
-.hidden{display:none!important}.mut{color:var(--mut);font-size:12px}
-.top{display:flex;align-items:center;justify-content:space-between}
-.brand{font-size:25px;font-weight:900}.brand span{color:var(--blue)}
-.avatarBtn{width:38px;height:38px;border:0;border-radius:13px;background:#ffffffbb;font-size:18px}
-.card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:15px;margin-top:12px;
-box-shadow:0 8px 25px #7c9db919}
-h1,h2,h3{margin:0}.btn{width:100%;border:0;border-radius:15px;padding:13px;font-size:15px;font-weight:900;
-background:var(--green);color:#fff;margin-top:10px}.btn.secondary{background:#eaf3fb;color:#315473}
-input,select{width:100%;border:1px solid #d5e3ef;border-radius:12px;padding:11px;background:#fff;font-size:14px;margin-top:7px}
-
-/* TODAY */
-.hero{position:relative;height:230px;border-radius:25px;overflow:hidden;margin-top:10px;
-background:linear-gradient(#90d4ff 0 60%,#d9efff 60% 67%,#79b66c 68%)}
-.hero:after{content:"";position:absolute;left:0;right:0;bottom:52px;height:80px;
-background:linear-gradient(155deg,transparent 30%,#799db1 31% 48%,transparent 49%) 10px 15px/210px 90px repeat-x;opacity:.75}
-.petImg{position:absolute;z-index:2;width:145px;height:145px;object-fit:cover;border-radius:30px;
-left:50%;bottom:12px;transform:translateX(-50%);filter:drop-shadow(0 9px 12px #31597942);
-animation:idle 2.7s ease-in-out infinite}
-.petImg.react{animation:react .75s ease}
-@keyframes idle{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-5px)}}
-@keyframes react{30%{transform:translateX(-50%) translateY(-18px) scale(1.08)}60%{transform:translateX(-50%) rotate(4deg) scale(1.04)}}
-.speech{position:absolute;z-index:3;right:13px;top:13px;background:#fff;border-radius:16px;padding:9px 11px;
-max-width:175px;font-weight:800;font-size:12px}
-.petMeta{display:flex;align-items:center;justify-content:space-between;padding-top:10px}
-.petName{font-size:20px;font-weight:900}.xpLine{height:7px;background:#e9f0f7;border-radius:99px;overflow:hidden;width:160px;margin-top:5px}
-.xpFill{height:100%;background:linear-gradient(90deg,#2f7ff4,#58c7ff);transition:.4s}
-.energy{color:#218e59;font-size:12px;font-weight:900}
-.dayHead{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:4px}
-.dayProgress{font-size:12px;color:var(--mut)}
-.progressLine{height:8px;background:#e8eff6;border-radius:99px;overflow:hidden;margin:9px 0 3px}
-.progressLine>div{height:100%;background:var(--green);transition:.4s}
-.task{display:grid;grid-template-columns:40px 1fr 38px;gap:9px;align-items:center;padding:12px 0;
-border-bottom:1px solid var(--line);position:relative}
-.task:last-child{border:0}
-.task.completed{
-  opacity:.72;
-  background:#f4fbf7;
-  border-radius:14px;
-  padding-left:8px;
-  padding-right:8px;
-}
-.task.completed b{
-  text-decoration:line-through;
-  text-decoration-thickness:1.5px;
-}
-.ico{width:38px;height:38px;border-radius:12px;background:#eff6fd;display:grid;place-items:center}
-.task b{font-size:14px}.task small{display:block;color:var(--mut);margin-top:3px;line-height:1.25}
-.tag{display:inline-block;border-radius:99px;padding:3px 7px;font-size:10px;margin-top:5px}
-.tag.red{background:#ffe7e8;color:#b92e39}.tag.green{background:#e3f7eb;color:#157849}.tag.blue{background:#e7f1ff;color:#2369bd}
-.check{width:35px;height:35px;border-radius:50%;border:2px solid #b9cadb;background:white;color:white;font-size:18px}
-.check.done{border-color:var(--green);background:var(--green)}
-
-/* secondary screens */
-.screenTitle{margin-top:10px;font-size:24px}
-.stats2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.stat{padding:13px;border-radius:16px;background:#f3f8fd}.stat b{font-size:22px;display:block}.stat span{font-size:11px;color:var(--mut)}
-.topic{padding:10px 0;border-bottom:1px solid var(--line)}.topic:last-child{border:0}
-.topicTop{display:flex;justify-content:space-between;gap:8px}.topic b{font-size:13px}
-.smallbar{height:6px;background:#e7eef6;border-radius:99px;overflow:hidden;margin-top:6px}.smallbar>div{height:100%;background:var(--blue)}
-.companions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.companion{border:2px solid #e2edf6;border-radius:18px;padding:8px;text-align:center}
-.companion.selected{border-color:var(--blue);background:#edf6ff}.companion img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:14px}.companion b{display:block;font-size:13px}
-.evolution{display:flex;justify-content:space-between;gap:5px;align-items:center;margin-top:12px}.ev{text-align:center;flex:1}.evBubble{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;margin:auto;background:#eaf3fb;font-size:23px}.ev.active .evBubble{background:#daf6e7;box-shadow:0 0 0 3px #73d5a4}.ev small{font-size:9px;color:var(--mut)}
-.settingsGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.toggle{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line)}
-.switch{width:47px;height:27px;border-radius:99px;background:#c9d7e4;position:relative}.switch:after{content:"";position:absolute;width:21px;height:21px;left:3px;top:3px;border-radius:50%;background:#fff;transition:.2s}.switch.on{background:var(--green)}.switch.on:after{left:23px}
-
-/* bottom nav */
-.nav{position:fixed;z-index:30;left:50%;bottom:0;transform:translateX(-50%);width:min(560px,100%);
-height:78px;background:#fffffff5;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);
-padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -5px 20px #6d8aa418}
-.navBtn{border:0;background:transparent;color:#607793;font-size:10px;padding:7px 2px}
-.navBtn span{display:block;font-size:22px;margin-bottom:2px}.navBtn.active{color:var(--blue);font-weight:900}
-
-/* overlays */
-.overlay{position:fixed;inset:0;background:#09243aaa;z-index:60;display:none;align-items:center;justify-content:center;padding:20px}
-.overlay.show{display:flex}.modal{width:min(360px,100%);border-radius:25px;background:#fff;padding:20px;text-align:center}
-.score{font-size:40px;font-weight:900;color:var(--blue);margin:7px}.resultHint{text-align:left;padding:10px;border-radius:13px;background:#f2f7fc;margin-top:10px}
-.rewardPet{width:125px;height:125px;object-fit:cover;border-radius:25px;animation:reward .7s ease}
-@keyframes reward{35%{transform:translateY(-13px) scale(1.08)}}
-.energyOrb{position:fixed;width:18px;height:18px;border-radius:50%;background:radial-gradient(circle,#fff 0 20%,#85efff 22%,#48baf9 56%,#2b7ef5 100%);box-shadow:0 0 18px #4ac0ff;z-index:80;pointer-events:none}
-
-/* auth */
-.row{display:flex;gap:8px}.row>*{flex:1}
-
-.pet3dFrame{
-  position:absolute;
-  inset:0;
-  width:100%;
-  height:100%;
-  border:0;
-  z-index:2;
-  background:transparent;
-}
-.petFallback{
-  z-index:1;
-}
-
-#threeStatus.ok{color:#168051;font-weight:800}
-#threeStatus.fail{color:#c13c45;font-weight:800}
-</style>
-</head>
-<body>
-<div class="shell">
-<div class="top"><div class="brand">Opo<span>Rumbo</span></div><button class="avatarBtn" id="quickProfile">☰</button></div>
-
-<div id="authCard" class="card">
-<h2>Entrar</h2><input id="email" type="email" placeholder="Email"><input id="pass" type="password" placeholder="Contraseña">
-<div class="row"><button id="signup" class="btn">Crear cuenta</button><button id="signin" class="btn secondary">Entrar</button></div><div id="authMsg" class="mut"></div>
-</div>
-
-<div id="app" class="hidden">
-<!-- HOY -->
-<section id="screenToday">
-  <div class="hero">
-    <div id="speech" class="speech">Hoy también sumamos 💙</div>
-    <img id="petHero" class="petImg" src="/static/auri.png" alt="Compañero">
-  </div>
-  <div class="petMeta">
-    <div><div class="petName"><span id="petName">Auri</span> <span id="level" class="mut">Nv. 1</span> <span id="threeStatus" class="mut">· cargando 3D…</span></div>
-      <div class="xpLine"><div id="xpFill" class="xpFill"></div></div></div>
-    <div class="energy">⚡ <span id="energy">100%</span></div>
-  </div>
-
-  <div class="card">
-    <div class="dayHead"><div><h2>Hoy</h2><div id="dayMeta" class="mut"></div></div><div id="date" class="dayProgress"></div></div>
-    <div class="progressLine"><div id="dayFill" style="width:0"></div></div>
-    <div id="tasks"></div>
-    <button id="regen" class="btn">Organizar mi día</button>
-  </div>
-</section>
-
-<!-- PROGRESO -->
-<section id="screenProgress" class="hidden">
- <h1 class="screenTitle">Progreso</h1>
- <div class="stats2">
-   <div class="stat"><b id="mastery">—</b><span>Índice de dominio</span></div>
-   <div class="stat"><b id="avg">—</b><span>Media de tests</span></div>
-   <div class="stat"><b id="target">80%</b><span>Objetivo</span></div>
-   <div class="stat"><b id="daysLeft">—</b><span>Días al examen</span></div>
- </div>
- <div class="card"><h2>Plan de vueltas</h2><div class="topic"><div class="topicTop"><b>Primera vuelta</b><span id="firstPct" class="mut">—</span></div><div class="smallbar"><div id="firstBar"></div></div></div><div class="topic"><div class="topicTop"><b>Ritmo necesario</b><span id="dailyNeed" class="mut">—</span></div></div><div class="topic"><div class="topicTop"><b>Repasos pendientes</b><span id="dueReviews" class="mut">—</span></div></div></div>
-</section>
-
-<!-- TEMARIO -->
-<section id="screenSyllabus" class="hidden">
- <h1 class="screenTitle">Temario</h1>
- <div class="card"><div id="topicList"></div></div>
-</section>
-
-<!-- CONSIGUE -->
-<section id="screenCompanion" class="hidden">
- <h1 class="screenTitle">Tu compañero</h1>
- <div class="card">
-  <div class="companions">
-   <div class="companion" data-pet="auri"><img src="/static/auri.png"><b>Auri</b><span class="mut">Motivación</span></div>
-   <div class="companion" data-pet="nexo"><img src="/static/nexo.png"><b>Nexo</b><span class="mut">Constancia</span></div>
-   <div class="companion" data-pet="bruma"><img src="/static/bruma.png"><b>Bruma</b><span class="mut">Calma</span></div>
-  </div>
- </div>
- <div class="card"><h2>Evolución</h2><div class="evolution">
-  <div class="ev" data-stage="1"><div class="evBubble">🥚</div><small>Inicio</small></div>
-  <div class="ev" data-stage="2"><div class="evBubble">✨</div><small>Primeros pasos</small></div>
-  <div class="ev" data-stage="3"><div class="evBubble">🌟</div><small>1ª vuelta</small></div>
-  <div class="ev" data-stage="4"><div class="evBubble">💫</div><small>2ª vuelta</small></div>
-  <div class="ev" data-stage="5"><div class="evBubble">🏆</div><small>Final</small></div>
- </div></div>
-</section>
-
-<!-- PERFIL -->
-<section id="screenProfile" class="hidden">
- <h1 class="screenTitle">Perfil y ajustes</h1>
- <div class="card">
-   <div class="mut">Objetivo de acierto (%)</div><input id="targetInput" type="number" min="50" max="100" value="80">
-   <div class="settingsGrid">
-    <div><div class="mut" style="margin-top:8px">Fecha examen</div><input id="exam" type="date"></div>
-    <div><div class="mut" style="margin-top:8px">Minutos/día</div><input id="minutes" type="number" min="30"></div>
-    <div><div class="mut" style="margin-top:8px">Días/semana</div><input id="daysWeek" type="number" min="1" max="7"></div>
-    <div><div class="mut" style="margin-top:8px">Vueltas</div><input id="rounds" type="number" min="1" max="5"></div>
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/>
+  <meta content="#f6f7f2" name="theme-color"/>
+  <link href="/static/icon.svg" rel="icon" type="image/svg+xml"/>
+  <link href="/static/auri.png" rel="apple-touch-icon"/>
+  <link href="/manifest.webmanifest" rel="manifest"/>
+  <link href="/static/styles.css?v=18" rel="stylesheet"/>
+  <title>
+   OpoRumbo · Un paso cada día
+  </title>
+  <script defer="" src="/static/app.js?v=18">
+  </script>
+ </head>
+ <body>
+  <div class="shell">
+   <header class="top">
+    <a class="brand" href="/">
+     <span class="brandMark">
+      ↗
+     </span>
+     OpoRumbo
+    </a>
+    <span class="eyebrow">
+     UN PASO CADA DÍA
+    </span>
+   </header>
+   <div aria-live="polite" class="notice" hidden="" id="notice" role="status">
    </div>
-   <select id="studyMode"><option value="free">Sin academia</option><option value="academy">Con academia</option></select>
-   <button id="saveSettings" class="btn">Guardar</button>
- </div>
- <div id="academyCard" class="card hidden"><h2>Academia: ¿qué toca hoy?</h2><div class="mut">Marca uno o varios temas. Serán la prioridad fija del día.</div><div id="academyTopics"></div></div>
- <div class="card">
-   <div class="toggle"><div><b>Sonido</b><div class="mut">Al completar tareas</div></div><div id="soundSwitch" class="switch on"></div></div>
-   <div class="toggle"><div><b>Animaciones</b><div class="mut">Energía hacia la mascota</div></div><div id="animSwitch" class="switch on"></div></div>
- </div>
-</section>
-</div>
-</div>
-
-<nav id="nav" class="nav hidden">
-<button class="navBtn active" data-screen="Today"><span>⌂</span>Hoy</button>
-<button class="navBtn" data-screen="Progress"><span>▥</span>Progreso</button>
-<button class="navBtn" data-screen="Syllabus"><span>▤</span>Temario</button>
-<button class="navBtn" data-screen="Companion"><span>♡</span>Consigue</button>
-<button class="navBtn" data-screen="Profile"><span>○</span>Perfil</button>
-</nav>
-
-<div id="scoreOverlay" class="overlay"><div class="modal">
-<h2>Resultado del test</h2><div class="mut">La nota decide cuándo volverá este bloque.</div>
-<div id="scoreNumber" class="score">80%</div><input id="scoreRange" type="range" min="0" max="100" value="80">
-<div id="scoreHint" class="resultHint"></div><button id="saveScore" class="btn">Guardar nota</button><button id="cancelScore" class="btn secondary">Cancelar</button>
-</div></div>
-
-<div id="rewardOverlay" class="overlay"><div class="modal">
-<img id="rewardPet" class="rewardPet" src="/static/auri.png"><h2>¡Conseguido!</h2>
-<div class="mut">Otro paso más. Tu compañero recibe energía.</div><div style="font-size:18px;font-weight:900;margin:10px">⭐ +<span id="gainXP">0</span> XP</div><button id="closeReward" class="btn">Seguir</button>
-</div></div>
-
-<script>
-let token=localStorage.getItem('or15')||localStorage.getItem('or14')||localStorage.getItem('or13')||localStorage.getItem('or12')||localStorage.getItem('or11')||localStorage.getItem('or9');
-let state={},opposition=null,pendingTest=null,academySelected=[];
-const $=id=>document.getElementById(id),H=()=>({'Content-Type':'application/json','Authorization':'Bearer '+token});
-const petFiles={auri:'/static/auri.png',nexo:'/static/nexo.png',bruma:'/static/bruma.png'};
-const petNames={auri:'Auri',nexo:'Nexo',bruma:'Bruma'};
-
-function ensureState(){
- state.pet=state.pet||{type:'auri',name:'Auri',energy:100,totalCompleted:0};
- if(state.pet.type==='lumi'){state.pet.type='auri';state.pet.name='Auri'}
- state.prefs=state.prefs||{sound:true,animations:true};
- state.settings=state.settings||{};
- academySelected=state.academy_selected||[];
-}
-function petStage(){
- const done=Object.values(state.topics||{}).reduce((a,x)=>a+(x.block||0),0);
- return done>=45?5:done>=28?4:done>=14?3:done>=4?2:1;
-}
-async function auth(path){
- const email=$('email').value.trim(),password=$('pass').value;
- if(!email||password.length<8){$('authMsg').textContent='Email válido y contraseña de 8 caracteres mínimo.';return}
- let r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})}),j=await r.json();
- if(!r.ok){$('authMsg').textContent=j.detail||'Error';return}
- token=j.token;localStorage.setItem('or15',token);boot()
-}
-async function boot(){
- if(!token)return;let r=await fetch('/api/me',{headers:H()});if(!r.ok)return;
- $('authCard').classList.add('hidden');$('app').classList.remove('hidden');$('nav').classList.remove('hidden');
- state=await fetch('/api/progress',{headers:H()}).then(r=>r.json());ensureState();
- if(!state.setup_complete){$('speech').textContent='Configura tu oposición desde Perfil para empezar 💙'}
- await loadOpp();fillSettings();renderAll();
-}
-async function loadOpp(){
- try{
-  opposition=await fetch('/api/oppositions/'+state.selected,{headers:H()}).then(r=>r.json());
- }catch(e){opposition=null}
- renderSyllabus();renderAcademy();
-}
-async function persist(){await fetch('/api/progress',{method:'PUT',headers:H(),body:JSON.stringify({data:state})})}
-
-function sound(){
- if(state.prefs?.sound===false)return;
- try{const A=window.AudioContext||window.webkitAudioContext,c=new A(),n=c.currentTime;[523,659,784].forEach((f,i)=>{let o=c.createOscillator(),g=c.createGain();o.frequency.value=f;o.connect(g);g.connect(c.destination);g.gain.setValueAtTime(0,n+i*.05);g.gain.linearRampToValueAtTime(.1,n+i*.05+.01);g.gain.exponentialRampToValueAtTime(.001,n+i*.05+.18);o.start(n+i*.05);o.stop(n+i*.05+.2)})}catch(e){}
-}
-function fly(btn){
- if(state.prefs?.animations===false)return Promise.resolve();
- return new Promise(res=>{
-  const a=btn.getBoundingClientRect(),target3d=$('pet3dFrame')||$('petHero'),b=target3d.getBoundingClientRect(),o=document.createElement('div');o.className='energyOrb';document.body.appendChild(o);
-  const sx=a.left+a.width/2-9,sy=a.top+a.height/2-9,tx=b.left+b.width/2-9,ty=b.top+b.height/2-9,s=performance.now();
-  function f(t){const p=Math.min(1,(t-s)/650),e=1-Math.pow(1-p,3);o.style.left=(sx+(tx-sx)*e)+'px';o.style.top=(sy+(ty-sy)*e-Math.sin(p*Math.PI)*70)+'px';if(p<1)requestAnimationFrame(f);else{o.remove();const frame=$('pet3dFrame');
-if(frame && frame.contentWindow){
-  frame.contentWindow.postMessage({type:'react',reaction:'eat'},'*');
-}else{
-  $('petHero').classList.add('react');
-  setTimeout(()=>$('petHero').classList.remove('react'),760);
-}
-setTimeout(res,780)}}
-  requestAnimationFrame(f)
- })
-}
-function meaning(v,target){
- if(v<50)return ['🔴 Muy débil','Volverá mañana'];
- if(v<65)return ['🔴 Débil','Repaso en unos 2 días'];
- if(v<target)return ['🟠 Debajo del objetivo','Volverá en pocos días'];
- if(v<90)return ['🟡 Objetivo alcanzado','Mantenimiento en ~1 semana'];
- if(v<95)return ['🟢 Dominado','Mantenimiento espaciado'];
- return ['💎 Muy dominado','Mantenimiento lejano'];
-}
-async function clickTask(i,btn){
-  const t=state.tasks[i];
-
-  if(t.kind==='test' && !t.done){
-    pendingTest={i,t,btn};
-    $('scoreRange').value=state.settings.target_score||80;
-    updateScore();
-    $('scoreOverlay').classList.add('show');
-    return;
-  }
-
-  if(t.done){
-    t.done=false;
-    state.xp=Math.max(0,(state.xp||0)-(t.xp||0));
-    renderAll();
-    await persist();
-    return;
-  }
-
-  // Immediate sensory feedback on the same user gesture.
-  sound();
-
-  // 1) Mark complete immediately so the UI never feels unresponsive.
-  t.done=true;
-  state.xp=(state.xp||0)+(t.xp||0);
-  state.pet.energy=Math.min(100,(state.pet.energy||0)+6);
-  state.pet.totalCompleted=(state.pet.totalCompleted||0)+1;
-
-  if(t.kind==='study'||t.kind==='academy'){
-    const k=String(t.topic_index);
-    state.topics=state.topics||{};
-    state.topics[k]=state.topics[k]||{block:0,score:null,tests:[],reviews:{}};
-    state.topics[k].block=Math.max(
-      state.topics[k].block||0,
-      (t.block_index||0)+1
-    );
-  }
-
-  // Render + persist BEFORE animation/reward.
-  renderAll();
-
-  try{
-    await persist();
-  }catch(e){
-    console.error('No se pudo guardar la tarea', e);
-  }
-
-  // 2) Visual reward after state is safely marked.
-  try{
-    await fly(btn);
-  }catch(e){
-    console.warn('Animación omitida', e);
-  }
-
-  $('gainXP').textContent=t.xp||0;
-  $('rewardPet').src=petFiles[state.pet.type]||petFiles.auri;
-  $('rewardOverlay').classList.add('show');
-}
-function updateScore(){
- let v=+$('scoreRange').value,target=state.settings.target_score||80,m=meaning(v,target);$('scoreNumber').textContent=v+'%';$('scoreHint').innerHTML=`<b>${m[0]}</b><br><span class="mut">${m[1]}</span>`
-}
-async function saveScore(){
-  if(!pendingTest)return;
-
-  const score=+$('scoreRange').value;
-  const t=pendingTest.t;
-
-  // Ask backend to record the score and next review.
-  const r=await fetch('/api/test/result',{
-    method:'POST',
-    headers:H(),
-    body:JSON.stringify({
-      opposition_id:state.selected,
-      topic_index:t.topic_index,
-      block_index:t.block_index||0,
-      score
-    })
-  });
-
-  const j=await r.json();
-
-  if(!r.ok){
-    alert(j.detail||'No se pudo guardar la nota');
-    return;
-  }
-
-  // Take the server state as the source of truth.
-  state=j.progress;
-  ensureState();
-
-  // Find the same test task after the server response.
-  const idx=pendingTest.i;
-  if(state.tasks && state.tasks[idx]){
-    state.tasks[idx].done=true;
-    state.tasks[idx].score=score;
-    state.tasks[idx].last_score=score;
-    state.xp=(state.xp||0)+(state.tasks[idx].xp||0);
-  }
-
-  // Explicitly persist the updated task completion too.
-  try{
-    await persist();
-  }catch(e){
-    console.error('Error persistiendo tras test',e);
-  }
-
-  $('scoreOverlay').classList.remove('show');
-  pendingTest=null;
-
-  // Repaint immediately so the saved note is visible.
-  renderAll();
-
-  // Then recalculate the day so future review priority reflects the new score.
-  try{
-    await regenerate();
-  }catch(e){
-    console.warn('No se pudo recalcular el día tras guardar la nota',e);
-  }
-}
-async function regenerate(){
- let s=state.settings||{},p={opposition_id:state.selected,minutes:s.minutes_default||s.minutes_today||180,mode:state.mode||'free',academy_topic_indexes:academySelected,exam_date:s.exam_date||'2027-03-15',days_per_week:s.days_per_week||6,target_rounds:s.target_rounds||3};
- if(p.mode==='academy'&&!academySelected.length){alert('Ve a Perfil y marca qué temas te toca hoy en la academia.');return}
- state=await fetch('/api/plan/today',{method:'POST',headers:H(),body:JSON.stringify(p)}).then(r=>r.json());ensureState();renderAll()
-}
-function renderToday(){
- let xp=state.xp||0,lvl=Math.floor(xp/300)+1,within=xp%300;
- $('petHero').src=petFiles[state.pet.type]||petFiles.auri;
-const frame=$('pet3dFrame');
-if(frame && frame.contentWindow){
-  frame.contentWindow.postMessage({type:'setPet',pet:state.pet.type,stage:petStage()},'*');
-}
-$('petName').textContent=state.pet.name||petNames[state.pet.type];$('level').textContent='Nv. '+lvl;$('xpFill').style.width=(within/300*100)+'%';$('energy').textContent=Math.round(state.pet.energy||0)+'%';
- $('speech').textContent=(state.pet.energy||100)<40?'Te estaba esperando. Hagamos una juntos 💙':'Hoy también sumamos 💙';
- $('date').textContent=new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'short'});
- let tasks=state.tasks||[],done=tasks.filter(x=>x.done).length,total=tasks.length,min=tasks.reduce((a,x)=>a+(x.minutes||0),0);
- $('dayMeta').textContent=`${total} tareas · ${min} min · ${done}/${total} hechas`;$('dayFill').style.width=(total?done/total*100:0)+'%';
- $('tasks').innerHTML=tasks.map((t,i)=>{let tag='';if(t.kind==='urgent_review')tag=`<span class="tag red">Prioridad · ${t.last_score??'—'}%</span>`;else if(t.kind==='maintenance')tag=`<span class="tag green">Mantenimiento · ${t.last_score??'—'}%</span>`;else if(t.kind==='test'){
-  const saved=(t.score!=null?t.score:(t.last_score!=null?t.last_score:null));
-  tag=saved!=null
-    ? `<span class="tag blue">Último test ${saved}% · objetivo ${state.settings.target_score||80}%</span>`
-    : `<span class="tag blue">Objetivo ${state.settings.target_score||80}%</span>`;
-}
- let icon=t.kind==='test'?'✓':t.kind==='urgent_review'?'!':t.kind==='maintenance'?'↻':t.kind==='english'?'EN':t.kind==='psy'?'◇':'▤';
- return `<div class="task ${t.done?'completed':''}"><div class="ico">${icon}</div><div><b>${t.title}</b><small>${t.detail} · ${t.minutes} min</small>${tag}</div><button class="check ${t.done?'done':''}" data-task="${i}">${t.done?'✓':''}</button></div>`}).join('')||'<div class="mut" style="padding:12px 0">Pulsa “Organizar mi día”.</div>';
- document.querySelectorAll('[data-task]').forEach(x=>x.onclick=()=>clickTask(+x.dataset.task,x))
-}
-function renderProgress(){
- let r=state.roadmap||{};$('mastery').textContent=r.mastery_index!=null?r.mastery_index+'%':'—';$('avg').textContent=r.average_test_score!=null?r.average_test_score+'%':'—';$('target').textContent=(state.settings.target_score||80)+'%';$('daysLeft').textContent=r.days_left??'—';$('firstPct').textContent=(r.first_round_pct??0)+'%';$('firstBar').style.width=(r.first_round_pct??0)+'%';$('dailyNeed').textContent=(r.required_minutes_per_study_day??'—')+' min/día';$('dueReviews').textContent=(state.due_reviews??0)
-}
-function renderSyllabus(){
- if(!opposition){$('topicList').innerHTML='<div class="mut">Configura una oposición.</div>';return}
- $('topicList').innerHTML=opposition.topics.map((t,i)=>{let s=(state.topics||{})[String(i)]||{},blocks=t.blocks||[],done=Math.min(s.block||0,blocks.length),pct=blocks.length?Math.round(done/blocks.length*100):0;return `<div class="topic"><div class="topicTop"><b>Tema ${t.n||i+1} · ${t.name}</b><span class="mut">${s.score!=null?s.score+'%':'Sin test'}</span></div><div class="smallbar"><div style="width:${pct}%"></div></div><div class="mut">${done}/${blocks.length} bloques</div></div>`}).join('')
-}
-function renderCompanion(){
- document.querySelectorAll('.companion').forEach(x=>x.classList.toggle('selected',x.dataset.pet===state.pet.type));let st=petStage();document.querySelectorAll('.ev').forEach(x=>x.classList.toggle('active',+x.dataset.stage===st))
-}
-function renderAcademy(){
- if(!opposition)return;$('academyTopics').innerHTML=opposition.topics.map((t,i)=>`<div class="topic" data-ac="${i}" style="cursor:pointer;background:${academySelected.includes(i)?'#edf6ff':'transparent'}"><b>${academySelected.includes(i)?'✓ ':''}Tema ${t.n||i+1} · ${t.name}</b></div>`).join('');
- document.querySelectorAll('[data-ac]').forEach(x=>x.onclick=()=>{let i=+x.dataset.ac;academySelected=academySelected.includes(i)?academySelected.filter(v=>v!==i):[...academySelected,i];state.academy_selected=academySelected;renderAcademy()})
-}
-function fillSettings(){
- let s=state.settings||{};$('targetInput').value=s.target_score||80;$('exam').value=s.exam_date||'2027-03-15';$('minutes').value=s.minutes_default||s.minutes_today||180;$('daysWeek').value=s.days_per_week||6;$('rounds').value=s.target_rounds||3;$('studyMode').value=state.mode||'free';$('academyCard').classList.toggle('hidden',$('studyMode').value!=='academy');syncSwitches()
-}
-function syncSwitches(){$('soundSwitch').classList.toggle('on',state.prefs.sound!==false);$('animSwitch').classList.toggle('on',state.prefs.animations!==false)}
-async function saveSettings(){
- state.settings=state.settings||{};state.settings.target_score=Math.max(50,Math.min(100,+$('targetInput').value||80));state.settings.exam_date=$('exam').value;state.settings.minutes_default=+$('minutes').value||180;state.settings.minutes_today=state.settings.minutes_default;state.settings.days_per_week=+$('daysWeek').value||6;state.settings.target_rounds=+$('rounds').value||3;state.mode=$('studyMode').value;state.academy_selected=academySelected;await persist();$('academyCard').classList.toggle('hidden',state.mode!=='academy');await regenerate()
-}
-function renderAll(){ensureState();renderToday();renderProgress();renderSyllabus();renderCompanion();renderAcademy();fillSettings()}
-function showScreen(name){['Today','Progress','Syllabus','Companion','Profile'].forEach(n=>$('screen'+n).classList.toggle('hidden',n!==name));document.querySelectorAll('.navBtn').forEach(b=>b.classList.toggle('active',b.dataset.screen===name))}
-document.querySelectorAll('.navBtn').forEach(b=>b.onclick=()=>showScreen(b.dataset.screen));
-document.querySelectorAll('.companion').forEach(c=>c.onclick=async()=>{state.pet.type=c.dataset.pet;state.pet.name=petNames[c.dataset.pet];const f=$('pet3dFrame');if(f&&f.contentWindow)f.contentWindow.postMessage({type:'setPet',pet:state.pet.type,stage:petStage()},'*');await persist();renderAll()});
-$('quickProfile').onclick=()=>showScreen('Profile');$('regen').onclick=regenerate;$('scoreRange').oninput=updateScore;$('saveScore').addEventListener('pointerdown',()=>{ if(pendingTest) sound(); });
-$('saveScore').onclick=saveScore;$('cancelScore').onclick=()=>{$('scoreOverlay').classList.remove('show');pendingTest=null};$('closeReward').onclick=()=>$('rewardOverlay').classList.remove('show');
-$('studyMode').onchange=()=>{$('academyCard').classList.toggle('hidden',$('studyMode').value!=='academy')};$('saveSettings').onclick=saveSettings;
-$('soundSwitch').onclick=async()=>{state.prefs.sound=!state.prefs.sound;syncSwitches();await persist()};$('animSwitch').onclick=async()=>{state.prefs.animations=!state.prefs.animations;syncSwitches();await persist()};
-$('signup').onclick=()=>auth('/api/register');$('signin').onclick=()=>auth('/api/login');
-window.addEventListener('message',(ev)=>{
-  if(ev.data && ev.data.type==='pet3dReady'){
-    const st=$('threeStatus'); if(st){st.textContent='· 3D activo';st.className='mut ok'}
-    const fb=$('petHero');
-    if(fb) fb.style.display='none';
-    const f=$('pet3dFrame');
-    if(f && f.contentWindow && state.pet){
-      f.contentWindow.postMessage({type:'setPet',pet:state.pet.type,stage:petStage()},'*');
-    }
-  }
-});
-window.addEventListener('message',(ev)=>{
-  if(ev.data && ev.data.type==='pet3dFailed'){
-    const st=$('threeStatus'); if(st){st.textContent='· 3D no cargado';st.className='mut fail'}
-  }
-});
-setTimeout(()=>{
-  const st=$('threeStatus');
-  if(st && !st.classList.contains('ok')){
-    st.textContent='· 3D no cargado';
-    st.className='mut fail';
-  }
-},4500);
-boot();
-</script>
-</body>
+   <section class="card auth" id="authCard">
+    <span class="eyebrow">
+     TU PRÓXIMA META
+    </span>
+    <h1>
+     Hoy también
+     <br/>
+     puedes avanzar.
+    </h1>
+    <p>
+     Tu oposición, un plan claro y un compañero para el camino.
+    </p>
+    <form id="authForm">
+     <label>
+      Email
+      <input autocomplete="email" id="email" required="" type="email"/>
+     </label>
+     <label>
+      Contraseña
+      <input autocomplete="current-password" id="pass" minlength="8" required="" type="password"/>
+     </label>
+     <button class="btn" id="signin" type="submit">
+      Entrar en mi espacio →
+     </button>
+     <button class="btn secondary" id="signup" type="button">
+      Crear una cuenta
+     </button>
+    </form>
+   </section>
+   <main hidden="" id="app">
+    <section aria-label="Hoy" id="screenToday">
+     <section class="card" hidden="" id="onboarding">
+      <span class="eyebrow">
+       EMPECEMOS POR TU META
+      </span>
+      <h2>
+       ¿Qué oposición preparas?
+      </h2>
+      <form id="searchForm">
+       <label>
+        Nombre de oposición o identificador BOE
+        <input id="searchOpp" minlength="3" placeholder="Por ejemplo: auxiliar administrativo" required=""/>
+       </label>
+       <button class="btn secondary" id="searchButton">
+        Buscar convocatoria y temario
+       </button>
+      </form>
+      <div aria-live="polite" id="searchResults">
+      </div>
+      <div hidden="" id="setupDetails">
+       <h3 id="selectedName">
+       </h3>
+       <p class="sourceNote" id="sourceStatus">
+       </p>
+       <a id="sourceLink" rel="noopener" target="_blank">
+        Consultar fuente oficial ↗
+       </a>
+       <details>
+        <summary>
+         Revisar temas encontrados
+        </summary>
+        <p class="preline" id="selectedTopics">
+        </p>
+       </details>
+       <form id="setupForm">
+        <label class="toggle">
+         <input id="confirmOpp" required="" type="checkbox"/>
+         He revisado la oposición y su temario
+        </label>
+        <div class="settingsGrid">
+         <label>
+          Fecha de examen
+          <input id="setupExam" required="" type="date"/>
+         </label>
+         <label>
+          Minutos al día
+          <input id="setupMinutes" max="720" min="30" required="" type="number" value="90"/>
+         </label>
+         <label>
+          Días por semana
+          <input id="setupDays" max="7" min="1" required="" type="number" value="5"/>
+         </label>
+         <label>
+          Vueltas objetivo
+          <select id="setupRounds">
+           <option>
+            2
+           </option>
+           <option selected="">
+            3
+           </option>
+           <option>
+            4
+           </option>
+           <option>
+            5
+           </option>
+          </select>
+         </label>
+        </div>
+        <label>
+         Objetivo de acierto (%)
+         <input id="setupTarget" max="100" min="50" required="" type="number" value="80"/>
+        </label>
+        <label>
+         Cómo estudias
+         <select id="setupMode">
+          <option value="free">
+           Sin academia · organiza mi estudio
+          </option>
+          <option value="academy">
+           Con academia · yo marco qué toca
+          </option>
+         </select>
+        </label>
+        <button class="btn" data-write="">
+         Confirmar y preparar mi camino
+        </button>
+       </form>
+      </div>
+     </section>
+     <section aria-label="Tu compañero de estudio" class="companionHero">
+      <div class="heroHeading">
+       <span class="eyebrow">
+        TU COMPAÑERO DE CAMINO
+       </span>
+       <span class="energy">
+        ✦
+        <span id="energy">
+         100%
+        </span>
+       </span>
+      </div>
+      <div class="petStage" id="petStage">
+       <div class="halo">
+       </div>
+       <img alt="Compañero de estudio" class="petFallback" id="petHero" src="/static/auri.png"/>
+       <iframe class="pet3dFrame" id="pet3dFrame" src="/static/pet3d.html?v=18" tabindex="-1" title="Compañero 3D interactivo">
+       </iframe>
+      </div>
+      <div class="petMeta">
+       <div>
+        <h1 id="petName">
+         Auri
+        </h1>
+        <span class="mut" id="level">
+         Nivel 1
+        </span>
+        <span class="dot">
+         ·
+        </span>
+        <span class="mut" id="threeStatus">
+         Preparando compañero
+        </span>
+       </div>
+       <div class="petMessage">
+        Cada pequeño paso cuenta.
+        <div aria-label="Experiencia del nivel" class="xpLine">
+         <div id="xpFill">
+         </div>
+        </div>
+       </div>
+      </div>
+     </section>
+     <section class="card todayCard">
+      <div class="dayHead">
+       <div>
+        <span class="eyebrow" id="date">
+        </span>
+        <h2>
+         Tu plan de hoy
+         <span class="headingDot">
+          .
+         </span>
+        </h2>
+       </div>
+       <span class="miniMark">
+        ↗
+       </span>
+      </div>
+      <p class="mut" id="dayMeta">
+      </p>
+      <div class="progressLine">
+       <div id="dayFill">
+       </div>
+      </div>
+      <div aria-live="polite" id="tasks">
+      </div>
+      <button class="btn" hidden="" id="retry">
+       Reintentar guardados pendientes
+      </button>
+      <button class="textButton" data-write="" hidden="" id="undoTask">
+       Deshacer última tarea
+      </button>
+      <button class="textButton" data-write="" id="regen">
+       Organizar mi día
+      </button>
+     </section>
+     <p class="footerNote">
+      Sin prisa por hacerlo todo. Con un plan para seguir.
+     </p>
+    </section>
+    <section hidden="" id="screenProgress">
+     <span class="eyebrow">
+      LO QUE VAS CONSTRUYENDO
+     </span>
+     <h1 class="screenTitle">
+      Tu progreso
+     </h1>
+     <div class="stats2">
+      <div class="stat">
+       <b id="mastery">
+        —
+       </b>
+       <span>
+        Índice de dominio
+       </span>
+      </div>
+      <div class="stat">
+       <b id="avg">
+        —
+       </b>
+       <span>
+        Media de tests
+       </span>
+      </div>
+      <div class="stat">
+       <b id="daysLeft">
+        —
+       </b>
+       <span>
+        Días hasta el examen
+       </span>
+      </div>
+      <div class="stat">
+       <b id="studyDays">
+        —
+       </b>
+       <span>
+        Días de estudio estimados
+       </span>
+      </div>
+     </div>
+     <div class="card">
+      <h2>
+       Tu plan de vueltas
+      </h2>
+      <div class="topicTop">
+       <span>
+        Primera vuelta
+       </span>
+       <b id="firstPct">
+       </b>
+      </div>
+      <div class="smallbar">
+       <div id="firstBar">
+       </div>
+      </div>
+      <div class="topicTop">
+       <span>
+        Ritmo necesario
+       </span>
+       <b id="dailyNeed">
+       </b>
+      </div>
+      <p id="pace">
+      </p>
+      <div id="roundOptions">
+      </div>
+      <div class="topicTop">
+       <span>
+        Repasos pendientes
+       </span>
+       <b id="dueReviews">
+       </b>
+      </div>
+      <p class="mut">
+       Estimación orientativa: primera vuelta más lenta y siguientes más ágiles. Se ajusta al avance registrado. El dominio refleja tus resultados; no garantiza aprobar.
+      </p>
+     </div>
+    </section>
+    <section hidden="" id="screenSyllabus">
+     <span class="eyebrow">
+      PASO A PASO
+     </span>
+     <h1 class="screenTitle">
+      Tu temario
+     </h1>
+     <p id="oppositionName">
+     </p>
+     <div class="card" id="topicList">
+     </div>
+    </section>
+    <section hidden="" id="screenCompanion">
+     <span class="eyebrow">
+      MEJOR EN COMPAÑÍA
+     </span>
+     <h1 class="screenTitle">
+      Elige tu compañero
+     </h1>
+     <p>
+      Un poco de ánimo para cada sesión. Evoluciona contigo a medida que avanzas.
+     </p>
+     <div class="companions">
+      <button class="companion" data-pet="auri" data-write="">
+       <img alt="Auri" src="/static/auri.png"/>
+       <b>
+        Auri
+       </b>
+       <span>
+        Ánimo y motivación
+       </span>
+      </button>
+      <button class="companion" data-pet="nexo" data-write="">
+       <img alt="Nexo" src="/static/nexo.png"/>
+       <b>
+        Nexo
+       </b>
+       <span>
+        Fuerza y constancia
+       </span>
+      </button>
+      <button class="companion" data-pet="bruma" data-write="">
+       <img alt="Bruma" src="/static/bruma.png"/>
+       <b>
+        Bruma
+       </b>
+       <span>
+        Calma y equilibrio
+       </span>
+      </button>
+     </div>
+     <div class="card">
+      <h2>
+       Crecer a tu ritmo
+      </h2>
+      <p>
+       Las tareas aportan experiencia y energía. Tu compañero cambia al subir de nivel y recorrer el temario.
+      </p>
+      <p class="mut">
+       No pierdes tu progreso por descansar.
+      </p>
+     </div>
+    </section>
+    <section hidden="" id="screenProfile">
+     <span class="eyebrow">
+      A TU MANERA
+     </span>
+     <h1 class="screenTitle">
+      Perfil y ajustes
+     </h1>
+     <p id="accountEmail">
+     </p>
+     <form class="card" id="settingsForm">
+      <h2>
+       Tu ritmo de estudio
+      </h2>
+      <div class="settingsGrid">
+       <label>
+        Fecha de examen
+        <input id="exam" required="" type="date"/>
+       </label>
+       <label>
+        Minutos al día
+        <input id="minutes" max="720" min="30" required="" type="number"/>
+       </label>
+       <label>
+        Días por semana
+        <input id="daysWeek" max="7" min="1" required="" type="number"/>
+       </label>
+       <label>
+        Vueltas objetivo
+        <input id="rounds" max="5" min="1" required="" type="number"/>
+       </label>
+      </div>
+      <label>
+       Objetivo de acierto (%)
+       <input id="targetInput" max="100" min="50" required="" type="number"/>
+      </label>
+      <label>
+       Cómo estudias
+       <select id="studyMode">
+        <option value="free">
+         Sin academia
+        </option>
+        <option value="academy">
+         Con academia
+        </option>
+       </select>
+      </label>
+      <div hidden="" id="academyCard">
+       <h3>
+        ¿Qué toca en la academia?
+       </h3>
+       <p class="mut">
+        Selecciona tus temas. Se priorizan hasta dos por sesión; los demás quedan seleccionados para seguir avanzando.
+       </p>
+       <div id="academyTopics">
+       </div>
+      </div>
+      <button class="btn" data-write="">
+       Guardar y ajustar lo pendiente
+      </button>
+     </form>
+     <div class="card">
+      <label class="toggle">
+       <span>
+        <b>
+         Sonido
+        </b>
+        <small>
+         Una pequeña recompensa al completar
+        </small>
+       </span>
+       <input checked="" data-write="" id="soundSwitch" type="checkbox"/>
+      </label>
+      <label class="toggle">
+       <span>
+        <b>
+         Animaciones
+        </b>
+        <small>
+         Movimiento del compañero y energía
+        </small>
+       </span>
+       <input checked="" data-write="" id="animSwitch" type="checkbox"/>
+      </label>
+     </div>
+     <button class="btn secondary" data-write="" id="changeOpp">
+      Configurar otra oposición
+     </button>
+     <button class="textButton" id="logout">
+      Cerrar sesión
+     </button>
+    </section>
+   </main>
+  </div>
+  <nav aria-label="Navegación principal" class="nav" hidden="" id="nav">
+   <button class="active" data-screen="Today">
+    <span>
+     ⌂
+    </span>
+    Hoy
+   </button>
+   <button data-screen="Progress">
+    <span>
+     ▥
+    </span>
+    Progreso
+   </button>
+   <button data-screen="Syllabus">
+    <span>
+     ▤
+    </span>
+    Temario
+   </button>
+   <button data-screen="Companion">
+    <span>
+     ♡
+    </span>
+    Compañero
+   </button>
+   <button data-screen="Profile">
+    <span>
+     ☷
+    </span>
+    Perfil
+   </button>
+  </nav>
+  <dialog id="scoreOverlay">
+   <form id="scoreForm">
+    <span class="eyebrow">
+     CADA RESULTADO AYUDA
+    </span>
+    <h2>
+     ¿Cómo ha ido el test?
+    </h2>
+    <p>
+     Objetivo:
+     <b id="scoreTarget">
+      80
+     </b>
+     %. Tu nota ajustará el próximo repaso.
+    </p>
+    <label>
+     Nota de 0 a 100
+     <input id="scoreInput" inputmode="numeric" max="100" min="0" required="" step="1" type="number"/>
+    </label>
+    <button class="btn" id="saveScore">
+     Guardar nota y completar
+    </button>
+    <button class="btn secondary" id="cancelScore" type="button">
+     Volver
+    </button>
+   </form>
+  </dialog>
+  <noscript>
+   Necesitas activar JavaScript para usar el plan de estudio.
+  </noscript>
+ </body>
 </html>

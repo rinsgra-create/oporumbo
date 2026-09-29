@@ -1,6 +1,6 @@
 
 import os, json, datetime, secrets
-from sqlalchemy import create_engine, Column, Integer, String, Text, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Text, ForeignKey, update
 from sqlalchemy.orm import declarative_base, sessionmaker
 from passlib.context import CryptContext
 
@@ -86,3 +86,34 @@ def save_progress(uid,data):
         else:s.add(Progress(user_id=uid,data=json.dumps(data,ensure_ascii=False),updated_at=now))
         s.commit()
     finally:s.close()
+
+class ProgressConflict(Exception):
+    pass
+
+def mutate_progress(uid, change, expected_revision=None):
+    """Compare-and-swap the existing JSON row; no schema migration required.
+
+    The conditional UPDATE also protects SQLite and simultaneous Render workers.
+    A failed write never replaces progress from another session.
+    """
+    with SessionLocal() as s:
+        row=s.query(Progress).filter(Progress.user_id==uid).first()
+        if row is None:
+            raise ProgressConflict("No se ha encontrado el progreso de esta cuenta")
+        original=row.data
+        data=json.loads(original)
+        revision=int(data.get("_revision",0))
+        if expected_revision is not None and revision != expected_revision:
+            raise ProgressConflict("Tu progreso cambió en otra sesión. Se ha actualizado la pantalla; vuelve a intentarlo.")
+        change(data)
+        data["_revision"]=revision+1
+        result=s.execute(update(Progress).where(
+            Progress.user_id==uid, Progress.data==original
+        ).values(data=json.dumps(data,ensure_ascii=False),
+                 updated_at=datetime.datetime.now(datetime.timezone.utc).isoformat()),
+                 execution_options={"synchronize_session":False})
+        if result.rowcount != 1:
+            s.rollback()
+            raise ProgressConflict("Otro dispositivo acaba de guardar cambios. Actualiza y vuelve a intentarlo.")
+        s.commit()
+        return data

@@ -1,6 +1,7 @@
 
 from datetime import date, datetime, timedelta
 import math
+from zoneinfo import ZoneInfo
 
 def _topic_state(progress, idx):
     topics = progress.setdefault("topics", {})
@@ -23,7 +24,7 @@ def _parse_date(s):
         return None
 
 def _today():
-    return date.today()
+    return datetime.now(ZoneInfo("Europe/Madrid")).date()
 
 def review_interval(score, target=80, streak=0):
     """
@@ -131,7 +132,8 @@ def _due_reviews(opposition, progress):
 
 def _next_block(topic, state):
     blocks = topic.get("blocks") or [topic.get("name", "Bloque")]
-    return min(int(state.get("block", 0)), len(blocks)-1)
+    counts=state.get("block_passes",{})
+    return min(range(len(blocks)), key=lambda b: counts.get(str(b),1 if b<int(state.get("block",0)) else 0))
 
 def _topic_priority(topic, state, target):
     score = state.get("score")
@@ -162,17 +164,25 @@ def roadmap(opposition, progress, exam_date, days_per_week=6, target_rounds=3):
 
     try:
         exam = datetime.strptime(exam_date, "%Y-%m-%d").date()
-        days_left = max(1, (exam - _today()).days)
+        days_left = max(0, (exam - _today()).days)
     except Exception:
         days_left = 180
 
-    study_days = max(1, round((days_left/7) * max(1, min(7, int(days_per_week)))))
+    study_days = (days_left//7)*int(days_per_week)+min(days_left%7,int(days_per_week))
     target_rounds = max(1, min(5, int(target_rounds)))
     pass_minutes = [75,45,30,25,20]
 
-    required = max(0, total_blocks-completed) * pass_minutes[0]
-    for r in range(1, target_rounds):
-        required += total_blocks * pass_minutes[min(r, len(pass_minutes)-1)]
+    def remaining_minutes(rounds):
+        required=0
+        for i,t in enumerate(topics):
+            st=_topic_state(progress,i)
+            for b in range(max(1,len(t.get("blocks",[])))):
+                passes=st.get("block_passes",{}).get(str(b),1 if b<int(st.get("block",0)) else 0)
+                required+=sum(pass_minutes[r] for r in range(min(passes,rounds),rounds))
+        return required
+    required=remaining_minutes(target_rounds)
+    pace={str(r):math.ceil(remaining_minutes(r)/max(1,study_days)) for r in (2,3,4)}
+    daily=math.ceil(required/max(1,study_days))
 
     target_score = int((progress.get("settings") or {}).get("target_score", 80))
     scores = []
@@ -190,11 +200,14 @@ def roadmap(opposition, progress, exam_date, days_per_week=6, target_rounds=3):
         "completed_first_blocks": completed,
         "first_round_pct": round(completed/total_blocks*100) if total_blocks else 0,
         "target_rounds": target_rounds,
+        "completed_rounds":min((_topic_state(progress,i).get("block_passes",{}).get(str(b),1 if b<int(_topic_state(progress,i).get("block",0)) else 0) for i,t in enumerate(topics) for b in range(max(1,len(t.get("blocks",[]))))),default=0),
         "estimated_minutes_required": required,
-        "required_minutes_per_study_day": math.ceil(required/study_days),
+        "required_minutes_per_study_day": daily,
+        "round_options":pace,
+        "pace_sufficient":study_days>0 and daily<=int((progress.get("settings") or {}).get("minutes_default",180)),
         "target_score": target_score,
         "average_test_score": avg_score,
-        "mastery_index": round(sum(mastery_from_score(s,target_score) for s in scores)/len(scores),1) if scores else 0,
+        "mastery_index": round(sum(mastery_from_score(_topic_state(progress,i).get("score"),target_score) for i in range(len(topics)))/max(1,len(topics)),1),
         "tests_recorded": len(scores)
     }
 
@@ -231,6 +244,8 @@ def make_day(opposition, minutes, progress, mode="free", academy_topic_indexes=N
     # 2) Academy-required content or adaptive main study.
     if mode == "academy" and academy_topic_indexes:
         per = max(20, round(max(30, remaining*0.58)/len(academy_topic_indexes)))
+        # Keep today's list manageable; least-covered selected topics come first.
+        academy_topic_indexes=sorted(set(academy_topic_indexes),key=lambda i:sum(_topic_state(progress,i).get("block_passes",{}).values())+int(_topic_state(progress,i).get("block",0)))[:2]
         for idx in academy_topic_indexes:
             if not (0 <= idx < len(opposition["topics"])):
                 continue
@@ -254,7 +269,9 @@ def make_day(opposition, minutes, progress, mode="free", academy_topic_indexes=N
         candidates=[]
         for i,t in enumerate(opposition["topics"]):
             st=_topic_state(progress,i)
-            candidates.append((_topic_priority(t,st,target),i,t,st))
+            bi=_next_block(t,st)
+            passes=st.get("block_passes",{}).get(str(bi),1 if bi<int(st.get("block",0)) else 0)
+            candidates.append((_topic_priority(t,st,target)-passes*1000,i,t,st))
         _,i,t,st=max(candidates,key=lambda x:x[0])
         bi=_next_block(t,st)
         blocks=t.get("blocks") or [t["name"]]
@@ -271,13 +288,24 @@ def make_day(opposition, minutes, progress, mode="free", academy_topic_indexes=N
         remaining -= study+test
 
     # 3) Keep ancillary tests only if time remains.
-    if remaining >= 35:
+    if remaining >= 35 and opposition.get("id")=="cabo_gc":
         eng = max(15, remaining//2)
         psy = max(15, remaining-eng)
         tasks += [
             {"kind":"english","title":"Inglés","detail":"Práctica + mini test","minutes":eng,"xp":60,"done":False},
             {"kind":"psy","title":"Psicotécnicos","detail":"Bloque cronometrado","minutes":psy,"xp":60,"done":False}
         ]
+
+    tasks=tasks[:5]
+    # Apportion minutes without exceeding the user's budget, even for 30 min days.
+    total=sum(t["minutes"] for t in tasks)
+    if total>minutes:
+        allocated=0
+        for t in tasks[:-1]:
+            t["minutes"]=max(1,int(t["minutes"]*minutes/total));allocated+=t["minutes"]
+        tasks[-1]["minutes"]=minutes-allocated
+    elif tasks:
+        tasks[1 if due and len(tasks)>1 else 0]["minutes"]+=minutes-total
 
     return {
         "tasks": tasks,

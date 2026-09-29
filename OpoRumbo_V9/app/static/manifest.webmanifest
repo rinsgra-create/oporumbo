@@ -1,9 +1,1 @@
-{
-  "name": "OpoRumbo",
-  "short_name": "OpoRumbo",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#eef7ff",
-  "theme_color": "#2f8df7",
-  "description": "Tu compañero de oposición"
-}
+{"id":"/","name":"OpoRumbo","short_name":"OpoRumbo","start_url":"/","scope":"/","display":"standalone","background_color":"#f6f7f2","theme_color":"#f6f7f2","description":"Tu compañero de oposición","lang":"es","icons":[{"src":"/static/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
