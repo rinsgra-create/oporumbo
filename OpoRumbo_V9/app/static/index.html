@@ -7,11 +7,11 @@
   <link href="/static/icon.svg" rel="icon" type="image/svg+xml"/>
   <link href="/static/auri.png" rel="apple-touch-icon"/>
   <link href="/manifest.webmanifest" rel="manifest"/>
-  <link href="/static/styles.css?v=18" rel="stylesheet"/>
+  <link href="/static/styles.css?v=19" rel="stylesheet"/>
   <title>
    OpoRumbo · Un paso cada día
   </title>
-  <script defer="" src="/static/app.js?v=18">
+  <script defer="" src="/static/app.js?v=19">
   </script>
  </head>
  <body>
@@ -215,6 +215,7 @@
        <div id="dayFill">
        </div>
       </div>
+      <p class="mut" id="todayPace"></p>
       <div aria-live="polite" id="tasks">
       </div>
       <button class="btn" hidden="" id="retry">
@@ -236,7 +237,7 @@
       LO QUE VAS CONSTRUYENDO
      </span>
      <h1 class="screenTitle">
-      Tu progreso
+      Tu plan y progreso
      </h1>
      <div class="stats2">
       <div class="stat">
@@ -294,8 +295,11 @@
        <b id="dailyNeed">
        </b>
       </div>
+      <p class="tag" id="estimateStatus"></p>
+      <p id="workloadTotal"></p><h3 id="possibleRounds"></h3><h3 id="planMargin"></h3>
       <p id="pace">
       </p>
+      <div id="milestones"></div><p class="mut" id="simulationBuffer"></p><p id="planDrift"></p><p id="academyImpact"></p><div id="planAlternatives"></div>
       <div id="roundOptions">
       </div>
       <div class="topicTop">
@@ -306,9 +310,10 @@
        </b>
       </div>
       <p class="mut">
-       Estimación orientativa: primera vuelta más lenta y siguientes más ágiles. Se ajusta al avance registrado. El dominio refleja tus resultados; no garantiza aprobar.
+       El dominio refleja tus resultados; no garantiza aprobar.
       </p>
      </div>
+     <div class="card"><p class="mut" id="planAssumptions"></p><details><summary>Cómo aprende tu ritmo</summary><div id="paceDetails"></div><p>Una sesión aislada tiene poco peso. Puedes omitir tiempos desconocidos; no se usan como mediciones.</p></details><details><summary>Qué partes necesitan más tiempo</summary><div id="weightDetails"></div></details></div>
     </section>
     <section hidden="" id="screenSyllabus">
      <span class="eyebrow">
@@ -477,7 +482,7 @@
     <span>
      ▥
     </span>
-    Progreso
+    Plan
    </button>
    <button data-screen="Syllabus">
     <span>
@@ -517,6 +522,7 @@
      Nota de 0 a 100
      <input id="scoreInput" inputmode="numeric" max="100" min="0" required="" step="1" type="number"/>
     </label>
+    <label>Minutos reales del test (opcional)<input id="testMinutes" type="number" min="0.1" max="1440" step="0.1" inputmode="decimal" placeholder="Sin medir"/></label>
     <button class="btn" id="saveScore">
      Guardar nota y completar
     </button>
@@ -525,6 +531,7 @@
     </button>
    </form>
   </dialog>
+  <dialog id="timeOverlay"><form id="timeForm"><span class="eyebrow">A TU RITMO</span><h2>¿Cuánto tardaste?</h2><p>Indica solo el tiempo de trabajo de esta tarea. Así ajustaremos las próximas estimaciones.</p><label>Minutos reales (opcional)<input id="actualMinutes" type="number" min="0.1" max="1440" step="0.1" inputmode="decimal" placeholder="Sin medir"/></label><p class="mut">Si no lo sabes, deja el campo vacío. Se guarda el avance sin aprender un tiempo inventado.</p><button class="btn" id="saveTime">Completar tarea</button><button class="btn secondary" id="cancelTime" type="button">Volver</button></form></dialog>
   <noscript>
    Necesitas activar JavaScript para usar el plan de estudio.
   </noscript>

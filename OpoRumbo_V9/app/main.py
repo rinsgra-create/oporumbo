@@ -8,13 +8,14 @@ from datetime import date
 from pathlib import Path
 import json
 from .db import init_db,register,login,user_from_token,get_progress,mutate_progress,ProgressConflict
+from .workload import weights, earned_minutes
 from .actions import identify_tasks,complete_task,undo_last_task
 from .planner import make_day,record_test,roadmap,_today
 from .researcher import search_catalog,search_boe,inspect_boe
 
 BASE=Path(__file__).resolve().parent
 CATALOG=json.loads((BASE/"catalog.json").read_text(encoding="utf-8"))
-app=FastAPI(title="OpoRumbo",version="18.0")
+app=FastAPI(title="OpoRumbo",version="19.0")
 init_db()
 
 @app.exception_handler(ProgressConflict)
@@ -67,6 +68,7 @@ class TestResultReq(BaseModel):
     task_id:str|None=None
 
 class CompleteReq(BaseModel):
+    actual_minutes:float|None=Field(None,gt=0,le=1440,allow_inf_nan=False)
     score:int|None=Field(None,ge=0,le=100)
 
 class UndoReq(BaseModel):
@@ -83,8 +85,16 @@ def get_opp_for_progress(p, oid):
         return p.get("custom_opposition")
     return next((o for o in CATALOG if o["id"]==oid),None)
 
+def refresh_workload(p):
+    o=get_opp_for_progress(p,p.get("selected"))
+    if o and p.get("settings"):
+        s=p["settings"]
+        p["roadmap"]=roadmap(o,p,s.get("exam_date"),s.get("days_per_week",6),s.get("target_rounds",3))
+        p["workload_weights"]={"schema":1,"blocks":weights(o)}
+        p.setdefault("workload_anchor",{"date":_today().isoformat(),"required_minutes":p["roadmap"]["estimated_minutes_required"],"earned_minutes":earned_minutes(o,p,s.get("target_rounds",3)),"target_rounds":s.get("target_rounds",3),"daily_minutes":s.get("minutes_default",180),"days_per_week":s.get("days_per_week",6)})
+
 @app.get("/api/health")
-def health():return {"ok":True,"version":"18.0"}
+def health():return {"ok":True,"version":"19.0"}
 
 @app.post("/api/register")
 def api_register(x:AuthReq):
@@ -104,7 +114,7 @@ def me(authorization:str|None=Header(None)):return require_user(authorization)
 
 @app.get("/api/progress")
 def progress(authorization:str|None=Header(None)):
-    u=require_user(authorization);p=get_progress(u["id"]);identify_tasks(p);return p
+    u=require_user(authorization);p=get_progress(u["id"]);identify_tasks(p);refresh_workload(p);return p
 
 @app.put("/api/progress")
 def save(x:SaveReq,authorization:str|None=Header(None)):
@@ -113,6 +123,7 @@ def save(x:SaveReq,authorization:str|None=Header(None)):
         # Preserve compatibility with the legacy full-state payload, but reject
         # stale snapshots instead of silently erasing a newer device's work.
         p.update(x.data)
+        refresh_workload(p)
     p=mutate_progress(u["id"],change,int(x.data.get("_revision",0)))
     return {"ok":True,"progress":p}
 
@@ -170,8 +181,9 @@ def setup(x:SetupReq,authorization:str|None=Header(None)):
         same=old_id==new_id and (new_id!="custom_researched" or p.get("custom_opposition",{}).get("boe_id")==o.get("boe_id"))
         if not same:
             p.pop("last_completion",None)
-            p.setdefault("opposition_history",[]).append({"selected":old_id,"topics":p.get("topics",{}),"tasks":p.get("tasks",[]),"custom_opposition":p.get("custom_opposition"),"saved_on":_today().isoformat()})
+            p.setdefault("opposition_history",[]).append({"selected":old_id,"topics":p.get("topics",{}),"tasks":p.get("tasks",[]),"custom_opposition":p.get("custom_opposition"),"pacing":p.get("pacing"),"practice_credit":p.get("practice_credit"),"workload_anchor":p.get("workload_anchor"),"saved_on":_today().isoformat()})
             p["topics"]={};p["tasks"]=[];p.pop("plan_date",None)
+            for key in ("pacing","practice_credit","workload_anchor"):p.pop(key,None)
         p["selected"]=new_id
         if new_id=="custom_researched":
             o["id"]=new_id;p["custom_opposition"]=o
@@ -180,6 +192,7 @@ def setup(x:SetupReq,authorization:str|None=Header(None)):
         p["settings"]={"exam_date":x.exam_date.isoformat(),"days_per_week":x.days_per_week,
             "target_rounds":x.target_rounds,"minutes_today":x.minutes_per_day,
             "minutes_default":x.minutes_per_day,"target_score":x.target_score}
+        refresh_workload(p)
     return mutate_progress(u["id"],change,x.revision)
 
 @app.post("/api/tasks/{task_id}/complete")
@@ -188,7 +201,7 @@ def finish(task_id:str,x:CompleteReq,authorization:str|None=Header(None)):
     def change(p):
         opp=get_opp_for_progress(p,p.get("selected"))
         if not opp:raise HTTPException(404,"Oposición no encontrada")
-        complete_task(p,opp,task_id,x.score)
+        complete_task(p,opp,task_id,x.score,x.actual_minutes)
     return mutate_progress(u["id"],change)
 
 @app.post("/api/test/result")
@@ -237,6 +250,7 @@ def today(x:PlanReq,authorization:str|None=Header(None)):
         # Old deployments did not store the date. Adopt their current tasks once.
         if same_day and p.get("tasks") and not x.replan:
             p["plan_date"]=today_key
+            refresh_workload(p)
             return
         completed=[t for t in p.get("tasks",[]) if t.get("done")] if same_day else []
         p["mode"]=x.mode;p["academy_selected"]=list(dict.fromkeys(x.academy_topic_indexes))
@@ -244,7 +258,7 @@ def today(x:PlanReq,authorization:str|None=Header(None)):
         p["settings"]={"exam_date":x.exam_date.isoformat(),"days_per_week":x.days_per_week,
             "target_rounds":x.target_rounds,"minutes_today":x.minutes,"minutes_default":x.minutes,
             "target_score":old.get("target_score",80)}
-        used=sum(t.get("minutes",0) for t in completed)
+        used=sum(t.get("actual_minutes",t.get("minutes",0)) for t in completed)
         remaining=max(0,x.minutes-used)
         result=make_day(opp,max(30,remaining),p,x.mode,p["academy_selected"],x.exam_date.isoformat(),x.days_per_week,x.target_rounds)
         def key(t):return (t.get("kind"),t.get("topic_index"),t.get("block_index"))
@@ -255,6 +269,7 @@ def today(x:PlanReq,authorization:str|None=Header(None)):
         p["plan_date"]=today_key
         identify_tasks(p)
         p["roadmap"]=result["roadmap"];p["due_reviews"]=result["due_reviews"]
+        refresh_workload(p)
     return mutate_progress(u["id"],change,x.revision)
 
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")

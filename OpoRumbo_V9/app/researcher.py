@@ -99,13 +99,22 @@ async def inspect_boe(boe_id):
     lines=[" ".join(x.split()) for x in text.splitlines() if x.strip()]
     topics=[]
     pattern=re.compile(r"^(?:Tema|TEMA)\s*(\d+)[\.\-:ºª\s]+(.+)$",re.I)
+    current=None
     for line in lines:
         m=pattern.match(line)
-        if not m: continue
+        if not m:
+            # Only explicit subheadings belong to a detected topic; never absorb
+            # unrelated prose, selection criteria, or articles from the call.
+            if current is not None and re.match(r"^(?:\d+\.\d+[. )]|[•–]\s)",line):
+                current.setdefault("subblocks",[]).append(line)
+            elif re.match(r"^(?:ANEXO|BASES|AP[ÉE]NDICE)\b",line,re.I):
+                current=None
+            continue
         n=int(m.group(1)); name=m.group(2).strip(" .-:")
         if len(name)<2: continue
         if not any(t["n"]==n for t in topics):
-            topics.append({"n":n,"name":name[:300],"blocks":[name[:300]]})
+            current={"n":n,"name":name[:300],"blocks":[part.strip() for part in name.split(";") if part.strip()]}
+            topics.append(current)
 
     # A second pass catches "Tema 1. Foo" embedded in longer HTML text.
     if len(topics)<2:
@@ -115,8 +124,10 @@ async def inspect_boe(boe_id):
             n=int(m.group(1)); body=m.group(2).strip()
             name=body.split(". ")[0][:220]
             if not any(t["n"]==n for t in topics):
-                topics.append({"n":n,"name":name,"blocks":[body[:700]]})
+                topics.append({"n":n,"name":name,"blocks":[part.strip() for part in body.split(";") if part.strip()]})
 
+    for topic in topics:
+        if topic.get("subblocks"):topic["blocks"]=topic.pop("subblocks")
     topics.sort(key=lambda x:x["n"])
     return {
         "boe_id":boe_id,

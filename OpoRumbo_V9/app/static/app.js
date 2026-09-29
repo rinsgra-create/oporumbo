@@ -3,7 +3,7 @@
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let token=['or18','or15','or14','or13','or12','or11','or9'].map(k=>localStorage.getItem(k)).find(Boolean);
-let state={},opposition=null,user=null,screen='Today',selectedOpp=null,pendingTest=null,configuringOpp=false;
+let state={},opposition=null,user=null,screen='Today',selectedOpp=null,pendingTest=null,pendingTime=null,configuringOpp=false;
 let pending=new Map(),queue=Promise.resolve(),writing=0,petReady=false,audioContext;
 const names={auri:'Auri',nexo:'Nexo',bruma:'Bruma'};
 const today=()=>new Date().toLocaleDateString('en-CA');
@@ -40,7 +40,7 @@ function enqueue(job){
  }).finally(()=>{writing--;updateBusy();});
 }
 function updateBusy(){document.querySelectorAll('[data-write]').forEach(b=>b.disabled=writing>0);}
-function rememberPending(){if(user)localStorage.setItem('or-pending-'+user.id,JSON.stringify([...pending.values()].map(({id,score})=>({id,score}))));}
+function rememberPending(){if(user)localStorage.setItem('or-pending-'+user.id,JSON.stringify([...pending.values()].map(({id,score,actual_minutes})=>({id,score,actual_minutes}))));}
 function stage(){const r=state.roadmap||{};return r.completed_rounds>=2?5:r.first_round_pct>=100?4:(r.first_round_pct>=50?3:state.xp>=300?2:1);}
 function sendPet(type,extra={}){const f=$('pet3dFrame');if(f?.contentWindow)f.contentWindow.postMessage({type,...extra},location.origin);}
 function syncPet(){sendPet('setPet',{pet:state.pet.type,stage:stage(),animations:state.prefs.animations!==false&&!matchMedia('(prefers-reduced-motion: reduce)').matches});}
@@ -86,8 +86,25 @@ function render(){
  const r=state.roadmap||{};
  $('mastery').textContent=(r.mastery_index??'—')+'%';$('avg').textContent=r.average_test_score!=null?r.average_test_score+'%':'—';$('daysLeft').textContent=r.days_left??'—';$('studyDays').textContent=r.study_days_left??'—';
  $('firstPct').textContent=(r.first_round_pct||0)+'%';$('firstBar').style.width=(r.first_round_pct||0)+'%';$('dailyNeed').textContent=(r.required_minutes_per_study_day??'—')+' min/día';$('dueReviews').textContent=state.due_reviews||0;
- $('pace').textContent=r.pace_sufficient?'Tu ritmo cubre la estimación actual.':'Revisa el tiempo diario o las vueltas objetivo.';
- $('roundOptions').innerHTML=Object.entries(r.round_options||{}).map(([round,min])=>`<div class="topicTop"><span>${round} vueltas</span><b>${min} min/día</b></div>`).join('');
+ $('pace').textContent=r.pace_sufficient?'Tu disponibilidad cubre la estimación actual.':'Revisa las alternativas para ajustar tu plan.';
+ $('todayPace').textContent=r.pace_sufficient?'Vas bien según la estimación actual.':r.alternatives?.extra_minutes_daily!=null?`El plan necesita unos ${r.alternatives.extra_minutes_daily} min/día más. Ver Plan.`:'Revisa la fecha del examen en Perfil.';
+ const hours=n=>Math.round((n||0)/60);
+ $('estimateStatus').textContent=(r.estimation_status==='personalized'?'Estimación personalizada en las categorías con datos':'Estimación inicial')+` · ${r.measured_sessions||0} sesiones medidas`;
+ $('workloadTotal').textContent=`Unas ${hours(r.initial_minutes)} h para ${r.target_rounds||3} vueltas desde cero · ${hours(r.estimated_minutes_required)} h pendientes con tus repasos actuales`;
+ $('planMargin').textContent=`${(r.margin_minutes||0)>=0?'Margen: +':'Déficit: −'}${hours(Math.abs(r.margin_minutes||0))} h`;
+ $('possibleRounds').textContent=`A tu ritmo actual: ${r.possible_rounds??'—'} vueltas completas${r.possible_rounds===5?' o más':''}`;
+ $('milestones').innerHTML=Object.entries(r.milestones||{}).slice(0,3).map(([n,d])=>`<div class="topicTop"><span>Fin orientativo · vuelta ${n}</span><b>${esc(d||'Requiere más disponibilidad')}</b></div>`).join('');
+ $('simulationBuffer').textContent=`Reserva final: ${r.simulation_buffer_days||0} días de estudio para simulacros (${hours(r.simulation_buffer_minutes)} h), descontada del margen.`;
+ $('planAssumptions').textContent=r.uncertainty||'';
+ const a=r.alternatives||{};
+ $('planAlternatives').innerHTML=r.pace_sufficient?'':`<h3>Opciones calculadas</h3><p>${a.extra_minutes_daily!=null?`Añadir unos ${a.extra_minutes_daily} min cada día de estudio.`:'No quedan días de estudio estimados antes del examen.'}</p>${a.with_extra_day_minutes_daily!=null?`<p>Con un día más por semana: ${a.with_extra_day_minutes_daily} min/día necesarios. ${a.with_extra_day_sufficient?'Tu tiempo diario actual bastaría.':'También necesitarías ajustar el tiempo diario.'}</p>`:''}${a.third_selective_pct>0?`<p>Dos vueltas completas y aproximadamente ${a.third_selective_pct}% de la tercera, priorizando bloques débiles.</p>`:'<p>Empieza por los bloques débiles; revisa la disponibilidad y el objetivo de vueltas.</p>'}`;
+ const drift=r.schedule_margin_minutes;
+ $('planDrift').textContent=drift==null?'':`Respecto al plan inicial: ${drift>=0?'+':'−'}${hours(Math.abs(drift))} h ${drift>=0?'por delante':'por detrás'} en carga de estudio prevista.`;
+ $('academyImpact').textContent=r.academy?.active?'Academia tiene prioridad hoy. Su avance se descuenta del mismo temario; el margen y los hitos siguen incluyendo todas las vueltas.':'';
+ const labels={study:'Estudio nuevo',review:'Repaso',test:'Test',english:'Inglés',psy:'Psicotécnicos'};
+ $('paceDetails').innerHTML=Object.entries(r.pace||{}).map(([k,v])=>`<p>${labels[k]}: ${v.sessions} sesiones · ${v.personalized?'personalizado':'inicial'} · tiempo relativo ×${v.factor.toFixed(2)}</p>`).join('');
+ $('weightDetails').innerHTML=(r.blocks||[]).map(w=>`<article class="topic"><b>T${w.topic_index+1} · ${esc(w.label)}</b><small>${w.size} · peso ${w.weight} · unas ${hours(w.remaining_minutes)} h pendientes</small><small>${esc(w.method)}. Estimación ${w.estimate_source==='manual'?'manual':'inferida'}; evidencia ${w.evidence_source==='official'?'BOE':w.evidence_source==='manual'?'manual':'de referencia'}.</small></article>`).join('');
+ $('roundOptions').innerHTML=Object.entries(r.round_options||{}).map(([round,min])=>`<div class="topicTop"><span>${round} vueltas</span><b>${min??'—'} min/día</b></div>`).join('');
  if(opposition){
   $('oppositionName').textContent=opposition.name;
   $('topicList').innerHTML=opposition.topics.map((t,i)=>{const s=state.topics?.[i]||{},count=(t.blocks||[t.name]).length;const dates=Object.values(s.reviews||{}).map(r=>r.next_review).filter(Boolean).sort();return `<article class="topic"><b>${t.n||i+1}. ${esc(t.name)}</b><small>${Math.min(s.block||0,count)}/${count} bloques · ${s.score!=null?'Última nota: '+s.score+'%':'Sin test todavía'}${dates.length?' · Repaso '+esc(dates[0]):''}</small><div class="smallbar"><div style="width:${Math.min(100,(s.block||0)/count*100)}%"></div></div></article>`;}).join('');
@@ -102,19 +119,19 @@ function render(){
 function clickTask(id,button){
  const task=state.tasks.find(t=>t.id===id);if(!task||task.done||pending.has(id))return;
  if(task.kind==='test'){
-  pendingTest={id,rect:button.getBoundingClientRect()};$('scoreInput').value=state.settings.target_score||80;$('scoreTarget').textContent=state.settings.target_score||80;$('scoreOverlay').showModal();$('scoreInput').focus();return;
+  pendingTest={id,rect:button.getBoundingClientRect()};$('testMinutes').value='';$('scoreInput').value=state.settings.target_score||80;$('scoreTarget').textContent=state.settings.target_score||80;$('scoreOverlay').showModal();$('scoreInput').focus();return;
  }
- complete(id,undefined,button.getBoundingClientRect());
+ pendingTime={id,rect:button.getBoundingClientRect()};$('actualMinutes').value='';$('timeOverlay').showModal();$('actualMinutes').focus();
 }
-function complete(id,score,rect){
+function complete(id,score,rect,actual_minutes){
  sound();if(rect)celebrate(rect);
- pending.set(id,{id,score});rememberPending();render();submitCompletion(id);
+ pending.set(id,{id,score,actual_minutes});rememberPending();render();submitCompletion(id);
 }
 function submitCompletion(id){
  enqueue(async()=>{
   const intent=pending.get(id);if(!intent)return;
   intent.failed=false;render();
-  try{state=await api('/api/tasks/'+encodeURIComponent(id)+'/complete',{method:'POST',body:{score:intent.score}});pending.delete(id);rememberPending();render();notice('Guardado. Un paso más hacia tu objetivo.');}
+  try{state=await api('/api/tasks/'+encodeURIComponent(id)+'/complete',{method:'POST',body:{score:intent.score,actual_minutes:intent.actual_minutes}});pending.delete(id);rememberPending();render();notice('Guardado. Un paso más hacia tu objetivo.');}
   catch(error){
    if(error.status&&error.status!==401)pending.delete(id);else intent.failed=true;
    rememberPending();render();throw error;
@@ -185,7 +202,10 @@ $('authForm').onsubmit=e=>{e.preventDefault();auth('/api/login');};$('signup').o
 $('regen').onclick=()=>enqueue(()=>plan(true));
 $('undoTask').onclick=()=>enqueue(async()=>{const id=state.last_completion?.id;if(!id)return;state=await api('/api/tasks/'+encodeURIComponent(id)+'/undo',{method:'POST',body:{revision:state._revision??0}});render();notice('Se ha deshecho la última tarea y su recompensa.');});
 $('retry').onclick=()=>{for(const [id,i] of pending)if(i.failed)submitCompletion(id);};
-$('scoreForm').onsubmit=e=>{e.preventDefault();if(!pendingTest||!$('scoreForm').reportValidity())return;const score=Number($('scoreInput').value),p=pendingTest;pendingTest=null;$('scoreOverlay').close();complete(p.id,score,p.rect);};
+$('scoreForm').onsubmit=e=>{e.preventDefault();if(!pendingTest||!$('scoreForm').reportValidity())return;const score=Number($('scoreInput').value),p=pendingTest;pendingTest=null;$('scoreOverlay').close();complete(p.id,score,p.rect, $('testMinutes').value?Number($('testMinutes').value):undefined);};
+$('timeForm').onsubmit=e=>{e.preventDefault();if(!pendingTime||!$('timeForm').reportValidity())return;const p=pendingTime,actual=$('actualMinutes').value?Number($('actualMinutes').value):undefined;pendingTime=null;$('timeOverlay').close();complete(p.id,undefined,p.rect,actual);};
+$('cancelTime').onclick=()=>{$('timeOverlay').close();pendingTime=null;};
+$('timeOverlay').onclose=()=>{pendingTime=null;};
 $('cancelScore').onclick=()=>{$('scoreOverlay').close();pendingTest=null;};$('scoreOverlay').onclose=()=>{pendingTest=null;};
 $('settingsForm').onsubmit=e=>{
  e.preventDefault();if(!$('settingsForm').reportValidity())return;

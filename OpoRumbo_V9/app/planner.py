@@ -156,159 +156,81 @@ def _topic_priority(topic, state, target):
     return p
 
 def roadmap(opposition, progress, exam_date, days_per_week=6, target_rounds=3):
-    topics = opposition["topics"]
-    total_blocks = sum(max(1, len(t.get("blocks", []))) for t in topics)
-    completed = 0
-    for i, t in enumerate(topics):
-        completed += min(int(_topic_state(progress, i).get("block", 0)), max(1, len(t.get("blocks", []))))
+    from .workload import estimate
+    return estimate(opposition, progress, exam_date, days_per_week, target_rounds, _today())
 
-    try:
-        exam = datetime.strptime(exam_date, "%Y-%m-%d").date()
-        days_left = max(0, (exam - _today()).days)
-    except Exception:
-        days_left = 180
-
-    study_days = (days_left//7)*int(days_per_week)+min(days_left%7,int(days_per_week))
-    target_rounds = max(1, min(5, int(target_rounds)))
-    pass_minutes = [75,45,30,25,20]
-
-    def remaining_minutes(rounds):
-        required=0
-        for i,t in enumerate(topics):
-            st=_topic_state(progress,i)
-            for b in range(max(1,len(t.get("blocks",[])))):
-                passes=st.get("block_passes",{}).get(str(b),1 if b<int(st.get("block",0)) else 0)
-                required+=sum(pass_minutes[r] for r in range(min(passes,rounds),rounds))
-        return required
-    required=remaining_minutes(target_rounds)
-    pace={str(r):math.ceil(remaining_minutes(r)/max(1,study_days)) for r in (2,3,4)}
-    daily=math.ceil(required/max(1,study_days))
-
-    target_score = int((progress.get("settings") or {}).get("target_score", 80))
-    scores = []
-    for i,_ in enumerate(topics):
-        st = _topic_state(progress, i)
-        for x in st.get("tests", []):
-            if x.get("score") is not None:
-                scores.append(int(x["score"]))
-    avg_score = round(sum(scores)/len(scores),1) if scores else None
-
-    return {
-        "days_left": days_left,
-        "study_days_left": study_days,
-        "total_blocks": total_blocks,
-        "completed_first_blocks": completed,
-        "first_round_pct": round(completed/total_blocks*100) if total_blocks else 0,
-        "target_rounds": target_rounds,
-        "completed_rounds":min((_topic_state(progress,i).get("block_passes",{}).get(str(b),1 if b<int(_topic_state(progress,i).get("block",0)) else 0) for i,t in enumerate(topics) for b in range(max(1,len(t.get("blocks",[]))))),default=0),
-        "estimated_minutes_required": required,
-        "required_minutes_per_study_day": daily,
-        "round_options":pace,
-        "pace_sufficient":study_days>0 and daily<=int((progress.get("settings") or {}).get("minutes_default",180)),
-        "target_score": target_score,
-        "average_test_score": avg_score,
-        "mastery_index": round(sum(mastery_from_score(_topic_state(progress,i).get("score"),target_score) for i in range(len(topics)))/max(1,len(topics)),1),
-        "tests_recorded": len(scores)
-    }
 
 def make_day(opposition, minutes, progress, mode="free", academy_topic_indexes=None,
              exam_date=None, days_per_week=6, target_rounds=3):
-    minutes = max(30, int(minutes))
-    target = int((progress.get("settings") or {}).get("target_score", 80))
-    academy_topic_indexes = academy_topic_indexes or []
+    from .workload import weights, pace, coverage, test_coverage, unit
+    minutes = max(1, int(minutes))
+    target = progress.get("settings", {}).get("target_score", 80)
+    personal = pace(progress)
+    ws = weights(opposition)
     tasks = []
     remaining = minutes
-
-    # 1) Due review first. Only one urgent review in a normal day.
+    selected = list(dict.fromkeys(academy_topic_indexes or []))[:2] if mode == "academy" else []
     due = _due_reviews(opposition, progress)
-    if due:
-        r = due[0]
-        score = r.get("last_score")
-        maintenance = score is not None and score >= target
-        rev_minutes = 12 if maintenance else 25
-        rev_minutes = min(rev_minutes, max(10, round(minutes*0.20)))
-        tasks.append({
-            "kind":"maintenance" if maintenance else "urgent_review",
-            "topic_index":r["topic_index"],
-            "block_index":r["block_index"],
-            "title":("Mantenimiento" if maintenance else "Repaso prioritario") + f" · Tema {r['topic'].get('n',r['topic_index']+1)}",
-            "detail":r["detail"],
-            "minutes":rev_minutes,
-            "xp":60 if maintenance else 90,
-            "done":False,
-            "last_score":score,
-            "target_score":target
-        })
-        remaining -= rev_minutes
+    used_blocks = set()
 
-    # 2) Academy-required content or adaptive main study.
-    if mode == "academy" and academy_topic_indexes:
-        per = max(20, round(max(30, remaining*0.58)/len(academy_topic_indexes)))
-        # Keep today's list manageable; least-covered selected topics come first.
-        academy_topic_indexes=sorted(set(academy_topic_indexes),key=lambda i:sum(_topic_state(progress,i).get("block_passes",{}).values())+int(_topic_state(progress,i).get("block",0)))[:2]
-        for idx in academy_topic_indexes:
-            if not (0 <= idx < len(opposition["topics"])):
-                continue
-            t = opposition["topics"][idx]
-            st = _topic_state(progress, idx)
-            bi = _next_block(t, st)
-            blocks = t.get("blocks") or [t["name"]]
-            tasks.append({
-                "kind":"academy","topic_index":idx,"block_index":bi,
-                "title":f"Academia · Tema {t.get('n',idx+1)} · {t['name']}",
-                "detail":blocks[bi],"minutes":per,"xp":110,"done":False
-            })
-            tasks.append({
-                "kind":"test","topic_index":idx,"block_index":bi,
-                "title":f"Test · Tema {t.get('n',idx+1)}",
-                "detail":blocks[bi],"minutes":15,"xp":100,"done":False,
-                "target_score":target
-            })
-            remaining -= per+15
-    else:
-        candidates=[]
-        for i,t in enumerate(opposition["topics"]):
-            st=_topic_state(progress,i)
-            bi=_next_block(t,st)
-            passes=st.get("block_passes",{}).get(str(bi),1 if bi<int(st.get("block",0)) else 0)
-            candidates.append((_topic_priority(t,st,target)-passes*1000,i,t,st))
-        _,i,t,st=max(candidates,key=lambda x:x[0])
-        bi=_next_block(t,st)
-        blocks=t.get("blocks") or [t["name"]]
-        study=max(25,round(max(40,remaining)*0.48))
-        test=max(15,round(max(30,remaining)*0.20))
-        tasks += [
-            {"kind":"study","topic_index":i,"block_index":bi,
-             "title":f"Tema {t.get('n',i+1)} · {t['name']}",
-             "detail":blocks[bi],"minutes":study,"xp":100,"done":False},
-            {"kind":"test","topic_index":i,"block_index":bi,
-             "title":"Test del bloque","detail":blocks[bi],
-             "minutes":test,"xp":120,"done":False,"target_score":target}
-        ]
-        remaining -= study+test
+    def append(kind, w, base, category, title, fraction=1, cap=None):
+        nonlocal remaining
+        if remaining < 1 or len(tasks) >= 5: return
+        predicted = max(1, math.ceil(base*personal[category]["factor"]))
+        allocation = min(remaining, predicted, cap if cap is not None else remaining)
+        share = allocation/predicted
+        task = {"kind":kind, "title":title, "detail":w["label"], "minutes":allocation,
+            "baseline_minutes":round(base*share,6), "pace_category":category,
+            "coverage":round(fraction*share,6), "xp":100 if kind in ("study","academy","test") else 60,
+            "done":False, "target_score":target}
+        if "topic_index" in w:
+            task.update(topic_index=w["topic_index"], block_index=w["block_index"])
+        if share < .999: task["detail"] += f" · aproximadamente {max(1,round(fraction*share*100))}% de esta vuelta"
+        tasks.append(task); remaining -= allocation
 
-    # 3) Keep ancillary tests only if time remains.
-    if remaining >= 35 and opposition.get("id")=="cabo_gc":
-        eng = max(15, remaining//2)
-        psy = max(15, remaining-eng)
-        tasks += [
-            {"kind":"english","title":"Inglés","detail":"Práctica + mini test","minutes":eng,"xp":60,"done":False},
-            {"kind":"psy","title":"Psicotécnicos","detail":"Bloque cronometrado","minutes":psy,"xp":60,"done":False}
-        ]
+    def pair(w, kind):
+        i,b=w["topic_index"],w["block_index"]
+        st=_topic_state(progress,i); done=coverage(st,b); tested=test_coverage(st,b); r=int(min(done,tested))
+        score=st.get("reviews",{}).get(str(b),{}).get("last_score")
+        category=w["pace_category"] or ("study" if r==0 else "review")
+        fraction=max(0,1-min(1,done-r))
+        base=unit(w["weight"],r,score=score,target=target)*fraction
+        # Keep a test slot; a short day earns only its fraction, never a whole block.
+        test_cap=min(15,max(1,remaining//5))
+        cap=max(1,remaining-test_cap)
+        if kind=="academy" and len(selected)>1: cap=max(1,cap//len(selected))
+        if fraction>0: append(kind,w,base,category,("Academia · " if kind=="academy" else "")+f"Tema {i+1} · "+opposition["topics"][i]["name"],fraction,cap)
+        test_fraction=max(0,1-min(1,tested-r))
+        if remaining and test_fraction>0:
+            append("test",w,unit(w["weight"],r,"test")*test_fraction,"test","Test del bloque",test_fraction,cap=test_cap if fraction else remaining)
+        used_blocks.add((i,b))
 
-    tasks=tasks[:5]
-    # Apportion minutes without exceeding the user's budget, even for 30 min days.
-    total=sum(t["minutes"] for t in tasks)
-    if total>minutes:
-        allocated=0
-        for t in tasks[:-1]:
-            t["minutes"]=max(1,int(t["minutes"]*minutes/total));allocated+=t["minutes"]
-        tasks[-1]["minutes"]=minutes-allocated
-    elif tasks:
-        tasks[1 if due and len(tasks)>1 else 0]["minutes"]+=minutes-total
-
-    return {
-        "tasks": tasks,
-        "roadmap": roadmap(opposition, progress, exam_date or "2027-03-15", days_per_week, target_rounds),
-        "due_reviews": len(due)
-    }
+    # Academy selection is fixed first; reviews use the remaining daily budget.
+    for i in selected:
+        candidates=[w for w in ws if w["topic_index"]==i]
+        if candidates:
+            pair(min(candidates,key=lambda w:min(coverage(_topic_state(progress,i),w["block_index"]),test_coverage(_topic_state(progress,i),w["block_index"]))),"academy")
+    for rev in (due if selected or len(ws)>1 else []):
+        key=(rev["topic_index"],rev["block_index"])
+        if key in used_blocks: continue  # The paired study/test already revisits it today.
+        w=next(w for w in ws if (w["topic_index"],w["block_index"])==key)
+        maintenance=rev.get("last_score") is not None and rev["last_score"]>=target
+        append("maintenance" if maintenance else "urgent_review",w,
+            unit(w["weight"],3,score=rev.get("last_score"),target=target),w["pace_category"] or "review",
+            ("Mantenimiento" if maintenance else "Repaso prioritario")+f" · Tema {key[0]+1}",cap=max(1,minutes//5))
+        used_blocks.add(key)
+        break
+    if not selected and ws and remaining:
+        candidates=[w for w in ws if (w["topic_index"],w["block_index"]) not in used_blocks] or ws
+        w=min(candidates,key=lambda w:(min(coverage(_topic_state(progress,w["topic_index"]),w["block_index"]),test_coverage(_topic_state(progress,w["topic_index"]),w["block_index"])),
+            -_topic_priority(opposition["topics"][w["topic_index"]],_topic_state(progress,w["topic_index"]),target)))
+        # Reserve practice for the catalogue opposition that includes these exams.
+        reserve=min(30,remaining//4) if opposition.get("id")=="cabo_gc" and remaining>=60 else 0
+        remaining-=reserve
+        pair(w,"study")
+        remaining+=reserve
+    if opposition.get("id")=="cabo_gc":
+        for kind,title in (("english","Inglés"),("psy","Psicotécnicos")):
+            if remaining>=1:
+                append(kind,{"label":"Práctica + mini test"},15,kind,title,cap=max(1,remaining//2) if kind=="english" else remaining)
+    return {"tasks":tasks, "roadmap":roadmap(opposition,progress,exam_date,days_per_week,target_rounds),"due_reviews":len(due)}

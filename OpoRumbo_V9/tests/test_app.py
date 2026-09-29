@@ -109,7 +109,7 @@ def test_daily_budget_and_task_limit(minutes,mode):
     assert len(result['tasks'])<=5
     assert sum(t['minutes'] for t in result['tasks'])<=minutes
     assert all(t['minutes']>0 for t in result['tasks'])
-    assert result['tasks'][0]['kind']=='urgent_review'
+    assert result['tasks'][0]['kind']==('academy' if mode=='academy' else 'urgent_review')
 
 def test_round_progress_and_recall_intervals():
     opp={'topics':[{'name':'A','blocks':['a','b']},{'name':'B','blocks':['c']}]}
@@ -188,3 +188,72 @@ def test_boe_search_form_and_title_parser(monkeypatch):
     assert len(results)==1
     assert results[0]['name']=='Convocatoria de prueba'
     assert results[0]['verified'] is False
+
+def test_measured_time_persistence_validation_and_retries(account):
+    c,email,_=account;p=plan(c);t=next(t for t in p['tasks'] if t['kind']=='study');url='/api/tasks/'+t['id']+'/complete'
+    for value in [0,-1,1441,'NaN','Infinity']:
+        assert c.post(url,json={'actual_minutes':value}).status_code==422
+    saved=c.post(url,json={'actual_minutes':120}).json()
+    assert saved['pacing']['sessions'][0]['actual_minutes']==120
+    assert saved['roadmap']['pace']['study']['factor']>1
+    assert len(c.post(url,json={'actual_minutes':120}).json()['pacing']['sessions'])==1
+    other=TestClient(app);token=other.post('/api/login',json={'email':email,'password':'Local-test-123!'}).json()['token'];other.headers['Authorization']='Bearer '+token
+    assert other.get('/api/progress').json()['pacing']==saved['pacing']
+    undo=c.post('/api/tasks/'+t['id']+'/undo',json={'revision':c.get('/api/progress').json()['_revision']})
+    assert undo.status_code==200 and undo.json()['pacing']['sessions']==[]
+
+
+def test_settings_recalculate_on_read_and_same_day(account):
+    c,_,_=account;p=plan(c);before=p['roadmap']['margin_minutes']
+    p['settings']['minutes_default']=200
+    r=c.put('/api/progress',json={'data':p});assert r.status_code==200
+    assert r.json()['progress']['roadmap']['margin_minutes']>before
+    a=c.get('/api/progress').json()
+    assert a['roadmap']['margin_minutes']==plan(c)['roadmap']['margin_minutes']
+
+
+def test_switch_opposition_archives_learning(account):
+    c,_,body=account;p=plan(c);t=p['tasks'][0]
+    p=c.post('/api/tasks/'+t['id']+'/complete',json={'actual_minutes':40}).json()
+    body['revision']=p['_revision'];body['opposition']={'name':'Otro programa','boe_id':'BOE-A-2026-55','topics':[{'name':'A','blocks':['A']}]}
+    r=c.post('/api/setup',json=body);assert r.status_code==200
+    assert r.json()['opposition_history'][-1]['pacing']==p['pacing']
+    assert r.json().get('pacing',{}).get('sessions',[])==[]
+
+
+def test_boe_explicit_subblocks_are_used(monkeypatch):
+    import asyncio,httpx
+    from app import researcher
+    html='<h3>Programa</h3><p>Tema 1. Constitución</p><p>1.1 Derechos</p><p>1.2 Garantías</p><p>Tema 2. Organización; competencias</p><p>ANEXO II</p><p>2.1 No es temario</p>'
+    class Client:
+        def __init__(self,**kwargs):pass
+        async def __aenter__(self):return self
+        async def __aexit__(self,*args):pass
+        async def get(self,url):return httpx.Response(200,text=html,request=httpx.Request('GET',url))
+    monkeypatch.setattr(researcher.httpx,'AsyncClient',Client)
+    o=asyncio.run(researcher.inspect_boe('BOE-A-2026-1'))
+    assert o['topics'][0]['blocks']==['1.1 Derechos','1.2 Garantías']
+    assert o['topics'][1]['blocks']==['Organización','competencias']
+
+def test_five_measured_days_personalize_and_survive_reload(account,monkeypatch):
+    import app.main as main
+    import app.planner as planner
+    import app.actions as actions
+    c,_,_=account;start=_today();p=plan(c)
+    assert p['roadmap']['estimation_status']=='initial'
+    for offset in range(12):
+        clock=start+timedelta(days=offset)
+        for module in (main,planner,actions):monkeypatch.setattr(module,'_today',lambda value=clock:value)
+        p=plan(c)
+        for task in p['tasks']:
+            if task['done']:continue
+            payload={'actual_minutes':round(task.get('baseline_minutes',task['minutes'])*2,3)}
+            if task['kind']=='test':payload['score']=85
+            r=c.post('/api/tasks/'+task['id']+'/complete',json=payload)
+            assert r.status_code==200,r.text
+        p=c.get('/api/progress').json()
+        if p['roadmap']['pace']['study']['sessions']>=5:break
+    assert p['roadmap']['pace']['study']['sessions']>=5
+    assert p['roadmap']['estimation_status']=='personalized'
+    assert p['roadmap']['pace']['study']['factor']>1
+    assert c.get('/api/progress').json()['pacing']==p['pacing']
