@@ -43,21 +43,21 @@ function enqueue(job){
 }
 function updateBusy(){document.querySelectorAll('[data-write]').forEach(b=>b.disabled=writing>0);}
 function rememberPending(){if(user)localStorage.setItem('or-pending-'+user.id,JSON.stringify([...pending.values()].map(({id,score,actual_minutes})=>({id,score,actual_minutes}))));}
-function stage(){const r=state.roadmap||{};return r.completed_rounds>=2?5:r.first_round_pct>=100?4:(r.first_round_pct>=50?3:state.xp>=300?2:1);}
+function stage(){if(!state.pet?.hatched)return 0;const r=state.roadmap||{},g=state.pet.growth||0;return Math.max(g>=100?5:g>=50?4:g>=20?3:g>=8?2:1,r.completed_rounds>=2?5:r.first_round_pct>=100?4:(r.first_round_pct>=50?3:state.xp>=300?2:1));}
 function sendPet(type,extra={}){const f=$('pet3dFrame');if(f?.contentWindow)f.contentWindow.postMessage({type,...extra},location.origin);}
 function syncPet(){sendPet('setPet',{pet:state.pet.type,stage:stage(),animations:state.prefs.animations!==false&&!matchMedia('(prefers-reduced-motion: reduce)').matches});}
 window.addEventListener('message',event=>{
  if(event.origin!==location.origin||event.source!==$('pet3dFrame').contentWindow)return;
- if(event.data?.type==='pet3dReady'){petReady=true;$('petHero').hidden=true;$('pet3dFrame').style.visibility='visible';$('threeStatus').textContent='3D activo';normalize();syncPet();}
- if(event.data?.type==='pet3dFailed'){petReady=false;$('petHero').hidden=false;$('pet3dFrame').style.visibility='hidden';$('threeStatus').textContent='Vista sencilla';console.warn('Compañero 3D:',event.data.reason);}
+ if(event.data?.type==='pet3dReady'){petReady=true;$('petHero').hidden=true;$('eggFallback').hidden=true;$('pet3dFrame').style.visibility='visible';$('threeStatus').textContent='3D activo';normalize();syncPet();}
+ if(event.data?.type==='pet3dFailed'){petReady=false;renderCare();$('pet3dFrame').style.visibility='hidden';$('threeStatus').textContent='Vista sencilla';console.warn('Compañero 3D:',event.data.reason);}
 });
-function sound(){
+function sound(kind='reward'){
  if(state.prefs?.sound===false)return;
  try{
   audioContext=audioContext||new (window.AudioContext||window.webkitAudioContext)();
   if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});
   const now=audioContext.currentTime;
-  [523.25,659.25,783.99].forEach((f,i)=>{const o=audioContext.createOscillator(),g=audioContext.createGain();o.type='sine';o.frequency.value=f;o.connect(g);g.connect(audioContext.destination);g.gain.setValueAtTime(0,now+i*.045);g.gain.linearRampToValueAtTime(.07,now+i*.045+.008);g.gain.exponentialRampToValueAtTime(.001,now+i*.045+.18);o.start(now+i*.045);o.stop(now+i*.045+.2);o.onended=()=>{o.disconnect();g.disconnect();};});
+  (kind==='pet'?[330,440]:[523.25,659.25,783.99]).forEach((f,i)=>{const o=audioContext.createOscillator(),g=audioContext.createGain();o.type='sine';o.frequency.setValueAtTime(f,now+i*.045);if(kind==='pet')o.frequency.exponentialRampToValueAtTime(f*1.3,now+i*.045+.14);o.connect(g);g.connect(audioContext.destination);g.gain.setValueAtTime(0,now+i*.045);g.gain.linearRampToValueAtTime(kind==='pet'?.035:.07,now+i*.045+.008);g.gain.exponentialRampToValueAtTime(.001,now+i*.045+.18);o.start(now+i*.045);o.stop(now+i*.045+.2);o.onended=()=>{o.disconnect();g.disconnect();};});
  }catch(error){console.warn('Audio no disponible',error.name);}
 }
 function celebrate(rect){
@@ -71,6 +71,7 @@ function celebrate(rect){
 function render(){
  normalize();const xp=state.xp||0;
  $('petName').textContent=names[state.pet.type];$('petHero').src='/static/'+state.pet.type+'.png';$('level').textContent='Nivel '+(Math.floor(xp/300)+1);$('energy').textContent=(state.pet.energy??100)+'%';$('xpFill').style.width=(xp%300)/3+'%';syncPet();
+ renderCare();
  document.documentElement.classList.toggle('reduce-motion',!state.prefs.animations);
  $('date').textContent=new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'short'});
  const tasks=state.tasks,done=tasks.filter(t=>t.done||pending.has(t.id)).length,total=tasks.length;
@@ -78,11 +79,12 @@ function render(){
  $('dayMeta').textContent=`${done} de ${total} completadas · ${Math.round(totalMinutes)} min en total`;
  $('dayFill').style.width=(total?done/total*100:0)+'%';
  $('todayAcademy').hidden=state.mode!=='academy';
- $('todayAcademy').textContent=state.plan_extra_minutes>0?`Las sesiones de hoy superan en unos ${state.plan_extra_minutes} min tu tiempo diario previsto. Puedes repartirlas o ajustar tu disponibilidad en Perfil.`:'Los temas de academia aplicados están incluidos en Hoy.';
+ $('todayAcademy').textContent=state.plan_extra_minutes>0?`Las sesiones de hoy superan en unos ${state.plan_extra_minutes} min tu tiempo diario previsto. Puedes repartirlas o ajustar tu disponibilidad en Perfil.`:state.academy_selected?.length?'Los temas de academia elegidos están incluidos en Hoy.':'Elige los temas que estudiarás hoy con la academia.';
  $('tasks').innerHTML=tasks.map(t=>{
   const intent=pending.get(t.id),complete=t.done||!!intent;
   let tag=t.kind==='urgent_review'?'<span class="tag red">Repaso prioritario</span>':t.kind==='maintenance'?'<span class="tag green">Mantenimiento</span>':t.kind==='test'?`<span class="tag blue">Objetivo ${state.settings.target_score||80}%${t.score!=null?' · Nota '+t.score+'%':''}</span>`:'';
   let status=intent?(intent.failed?'Pendiente de confirmar':'Guardando…'):t.done?'Hecho hoy':'';
+  if(t.extra)tag+='<span class="tag green">Extra · '+(t.done?'Comida ganada':' +1 comida al completar')+'</span>';
   const duration=t.done&&t.actual_minutes!=null?`${t.actual_minutes} min reales`:`${t.minutes} min previstos`;
   return `<article class="task ${complete?'completed':''}"><div class="taskCopy"><b>${esc(t.title)}</b><small>${esc(t.detail)}</small><div class="taskMeta"><span>${duration}</span>${tag}</div>${status?`<small class="saved ${intent?.failed?'pending':''}">${status}</small>`:''}${t.next_review?`<small>Próximo repaso: ${esc(t.next_review)}</small>`:''}</div><button class="check ${complete?'done':''}" data-task="${esc(t.id)}" aria-label="${complete?'Completada: ':'Completar: '}${esc(t.title)}" ${complete?'disabled':''}>${complete?'✓':'<span></span>'}</button></article>`;
  }).join('')||'<div class="empty"><b>Tu siguiente paso empieza aquí</b><p>Configura tu oposición y organiza una sesión a tu medida.</p></div>';
@@ -204,6 +206,59 @@ async function choose(choice){
 }
 document.querySelectorAll('[data-screen]').forEach(b=>b.onclick=()=>showScreen(b.dataset.screen));
 $('authForm').onsubmit=e=>{e.preventDefault();auth('/api/login');};$('signup').onclick=()=>auth('/api/register');
+
+function renderCare(){
+ const p=state.pet||{},hatched=!!p.hatched;
+ $('petName').textContent=hatched?names[p.type]:'Huevo de '+names[p.type||'auri'];
+ $('petHero').hidden=petReady||!hatched;$('eggFallback').hidden=petReady||hatched;
+ $('adoptEgg').hidden=!!p.egg_started;$('hatchEgg').hidden=!p.egg_started||hatched;
+ $('hatchEgg').textContent=(p.egg_tasks||0)>=3?'Abrir el huevo':'Huevo · '+Math.min(3,p.egg_tasks||0)+'/3 tareas';
+ $('feedPet').hidden=!hatched;$('feedPet').textContent='Darle de comer · '+(p.food||0)+(p.food===1?' ración':' raciones');
+ $('petStats').textContent=hatched?`Etapa ${stage()}/5 · Crecimiento ${p.growth||0} · Alegría ${p.happiness??50}/100`:'Completa tres tareas para que nazca. La comida extra se guarda para después.';
+ $('strokePet').setAttribute('aria-label',hatched?'Acariciar a '+names[p.type]:'Acariciar el huevo');
+}
+async function careAction(action,kind){
+ state=await api('/api/pet/care',{method:'POST',body:{action,kind:kind||state.pet.type,revision:state._revision??0}});render();
+ $('careStatus').textContent=action==='feed'?'¡Qué rico! +2 de crecimiento y +10 de alegría.':action==='hatch'?'¡Ha nacido '+names[state.pet.type]+'!':action==='adopt'?'Tu huevo te acompaña. Completa tres tareas para abrirlo.':'Le encanta que lo acaricies. ♥';
+ sendPet('react',{reaction:action==='feed'?'eat':'happy'});
+}
+$('adoptEgg').onclick=()=>$('eggDialog').showModal();
+$('cancelEgg').onclick=()=>$('eggDialog').close();
+document.querySelectorAll('[data-egg]').forEach(b=>b.onclick=()=>enqueue(async()=>{await careAction('adopt',b.dataset.egg);$('eggDialog').close();}));
+$('hatchEgg').onclick=()=>{sound();enqueue(()=>careAction('hatch'));};
+$('feedPet').onclick=()=>{if(!(state.pet.food>0)){$('careStatus').textContent='Completa una tarea extra para ganar comida.';return;}sound();sendPet('react',{reaction:'eat'});enqueue(()=>careAction('feed'));};
+let lastStroke=0,strokeStart=null;
+function stroke(){
+ const now=Date.now();if(now-lastStroke<700)return;lastStroke=now;
+ sound('pet');sendPet('react',{reaction:'happy'});$('careStatus').textContent=state.pet.hatched?'♥ Le encanta que lo acaricies.':'Tu huevo se siente acompañado. ♥';
+ if(!writing)enqueue(()=>careAction('stroke'));
+}
+$('strokePet').onclick=stroke;
+$('strokePet').onpointerdown=e=>{strokeStart={x:e.clientX,y:e.clientY};};
+$('strokePet').onpointermove=e=>{if(strokeStart&&Math.hypot(e.clientX-strokeStart.x,e.clientY-strokeStart.y)>15){stroke();strokeStart={x:e.clientX,y:e.clientY};}};
+$('strokePet').onpointerup=$('strokePet').onpointercancel=$('strokePet').onpointerleave=()=>{strokeStart=null;};
+let extraRequestId;
+$('addExtra').onclick=()=>{
+ if(!opposition){notice('Configura primero tu oposición.',true);return;}
+ $('extraTopic').innerHTML=opposition.topics.map((t,i)=>`<option value="${i}">${i+1}. ${esc(t.name)}</option>`).join('');
+ extraRequestId=crypto.randomUUID();$('extraError').textContent='';$('extraDialog').showModal();
+};
+$('cancelExtra').onclick=()=>$('extraDialog').close();
+$('extraForm').onsubmit=e=>{e.preventDefault();const topic=+$('extraTopic').value,minutes=+$('extraMinutes').value,request_id=extraRequestId;enqueue(async()=>{
+ try{state=await api('/api/tasks/extra',{method:'POST',body:{topic_index:topic,minutes,request_id,revision:state._revision??0}});render();$('extraDialog').close();$('todayPlanStatus').textContent='Sesión extra añadida. Cada tarea extra completada da una ración de comida.';}
+ catch(error){$('extraError').textContent=error.message;throw error;}
+});};
+$('chooseAcademy').onclick=()=>{
+ if(!opposition){notice('Configura primero tu oposición.',true);return;}
+ $('dayAcademyTopics').innerHTML=opposition.topics.map((t,i)=>`<label class="academyTopic"><input type="checkbox" value="${i}" ${(state.academy_selected||[]).includes(i)?'checked':''}><span>${i+1}. ${esc(t.name)}</span></label>`).join('');
+ $('dayAcademyError').textContent='';$('academyDialog').showModal();
+};
+$('cancelAcademy').onclick=()=>$('academyDialog').close();
+$('dayAcademyForm').onsubmit=e=>{e.preventDefault();const topics=[...$('dayAcademyTopics').querySelectorAll('input:checked')].map(x=>+x.value);enqueue(async()=>{
+ try{if(await plan(true,{...state,mode:'academy',academy_selected:topics})){academyDraft=null;$('academyDialog').close();$('todayPlanStatus').textContent='Temas de academia preparados para hoy. Puedes añadir sesiones extra cuando quieras.';}}
+ catch(error){$('dayAcademyError').textContent=error.message;throw error;}
+});};
+
 $('regen').onclick=()=>enqueue(async()=>{
  $('todayPlanStatus').textContent='Reorganizando tu plan…';$('regen').textContent='Reorganizando…';
  try{

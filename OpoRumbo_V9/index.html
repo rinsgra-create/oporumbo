@@ -11,9 +11,9 @@
   <title>
    OpoRumbo · Un paso cada día
   </title>
-  <script defer="" src="/static/app.js?v=19.3">
+  <script defer="" src="/static/app.js?v=20">
   </script>
- </head>
+ <style>.petTouch{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent;cursor:pointer;touch-action:pan-y;z-index:4}.petTouch:focus-visible{outline:3px solid #28785d;border-radius:24px}#eggFallback{position:absolute;inset:0;display:grid;place-items:center;font-size:120px}#eggFallback[hidden]{display:none}.careActions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0}.careActions button{min-height:44px}.careActions .mut{flex-basis:100%}#dayAcademyTopics{max-height:50vh;overflow:auto}dialog{max-width:min(560px,calc(100vw - 32px));box-sizing:border-box}dialog select{width:100%}</style></head>
  <body>
   <div class="shell">
    <header class="top">
@@ -166,8 +166,10 @@
        <div class="halo">
        </div>
        <img alt="Compañero de estudio" class="petFallback" id="petHero" src="/static/auri.png"/>
-       <iframe class="pet3dFrame" id="pet3dFrame" src="/static/pet3d.html?v=18" tabindex="-1" title="Compañero 3D interactivo">
+       <iframe class="pet3dFrame" id="pet3dFrame" src="/static/pet3d.html?v=20" tabindex="-1" title="Compañero 3D interactivo">
        </iframe>
+       <div id="eggFallback" hidden aria-hidden="true">🥚</div>
+       <button id="strokePet" class="petTouch" aria-label="Acariciar a tu compañero" type="button"></button>
       </div>
       <div class="petMeta">
        <div>
@@ -192,6 +194,8 @@
         </div>
        </div>
       </div>
+      <p id="careStatus" role="status" aria-live="polite"></p>
+      <div class="careActions"><button class="btn" id="adoptEgg" data-write>Elegir mi huevo</button><button class="btn" id="hatchEgg" data-write hidden>Abrir el huevo</button><button class="btn secondary" id="feedPet" data-write hidden>Darle de comer</button><span id="petStats" class="mut"></span></div>
      </section>
      <section class="card todayCard">
       <div class="dayHead">
@@ -218,6 +222,8 @@
       <p class="mut" id="todayPace"></p>
       <p class="mut" id="todayAcademy" hidden></p>
       <p class="mut" id="todayPlanStatus" role="status" aria-live="polite"></p>
+      <div class="careActions"><button class="btn secondary" id="chooseAcademy" data-write>Elegir temas de academia para hoy</button><button class="btn" id="addExtra" data-write>Añadir tarea extra · ganar comida</button></div>
+      <p class="mut">Las tareas extra son opcionales. Descansar también forma parte del plan.</p>
       <div aria-live="polite" id="tasks">
       </div>
       <button class="btn" hidden="" id="retry">
@@ -507,6 +513,9 @@
     Perfil
    </button>
   </nav>
+  <dialog id="extraDialog"><form id="extraForm"><h2>Añadir una sesión extra</h2><p>Se suma a Hoy sin cambiar tus otras tareas. Cada tarea extra completada da una ración de comida.</p><label>Tema<select id="extraTopic" required></select></label><label>Tiempo previsto<select id="extraMinutes"><option value="30">30 minutos</option><option value="45">45 minutos</option><option value="60">60 minutos</option></select></label><p id="extraError" role="alert"></p><button class="btn" data-write>Añadir a Hoy</button><button class="btn secondary" type="button" id="cancelExtra">Volver</button></form></dialog>
+  <dialog id="academyDialog"><form id="dayAcademyForm"><h2>¿Qué estudiarás hoy en la academia?</h2><div id="dayAcademyTopics"></div><p id="dayAcademyError" role="alert"></p><button class="btn" data-write>Preparar Hoy</button><button class="btn secondary" type="button" id="cancelAcademy">Volver</button></form></dialog>
+  <dialog id="eggDialog"><h2>Elige tu huevo</h2><p>Tras tres tareas podrás abrirlo. Cada tarea ayuda a crecer a tu compañero.</p><div class="careActions"><button class="btn" data-egg="auri" data-write>🥚 Auri · ánimo</button><button class="btn" data-egg="nexo" data-write>🥚 Nexo · constancia</button><button class="btn" data-egg="bruma" data-write>🥚 Bruma · calma</button></div><button class="btn secondary" id="cancelEgg">Volver</button></dialog>
   <dialog id="scoreOverlay">
    <form id="scoreForm">
     <span class="eyebrow">

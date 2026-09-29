@@ -1,0 +1,4 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Compañero OpoRumbo</title><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}canvas{display:block;width:100%;height:100%}#error{font:14px system-ui;color:#38574a;padding:20px}</style></head><body><div id="error" hidden></div><script type="module">
+const failed=error=>{console.warn('No se pudo iniciar el compañero 3D:',error);document.getElementById('error').textContent='La vista 3D no está disponible en este dispositivo.';document.getElementById('error').hidden=false;parent.postMessage({type:'pet3dFailed',reason:error?.message||'Error WebGL'},location.origin);};
+import('./pet-scene.js?v=20').then(module=>module.start()).catch(failed);
+</script></body></html>

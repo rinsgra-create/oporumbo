@@ -11,12 +11,13 @@ from uuid import uuid4
 from .db import init_db,register,login,user_from_token,get_progress,mutate_progress,ProgressConflict
 from .workload import weights, earned_minutes
 from .actions import identify_tasks,complete_task,undo_last_task
+from .pet import companion,care
 from .planner import make_day,record_test,roadmap,_today
 from .researcher import search_catalog,search_boe,inspect_boe
 
 BASE=Path(__file__).resolve().parent
 CATALOG=json.loads((BASE/"catalog.json").read_text(encoding="utf-8"))
-app=FastAPI(title="OpoRumbo",version="19.3")
+app=FastAPI(title="OpoRumbo",version="20.0")
 init_db()
 
 @app.exception_handler(ProgressConflict)
@@ -76,6 +77,17 @@ class CompleteReq(BaseModel):
 class UndoReq(BaseModel):
     revision:int
 
+class ExtraReq(BaseModel):
+    topic_index:int=Field(ge=0)
+    minutes:int=Field(30,ge=30,le=120)
+    request_id:str=Field(min_length=8,max_length=80)
+    revision:int
+
+class CareReq(BaseModel):
+    action:Literal['adopt','hatch','feed','stroke']
+    kind:Literal['auri','nexo','bruma']='auri'
+    revision:int
+
 def require_user(a):
     if not a or not a.lower().startswith("bearer "):raise HTTPException(401,"Falta sesión")
     u=user_from_token(a.split(" ",1)[1])
@@ -98,7 +110,7 @@ def refresh_workload(p):
         p.setdefault("workload_anchor",{"date":_today().isoformat(),"required_minutes":p["roadmap"]["estimated_minutes_required"],"earned_minutes":earned_minutes(o,p,s.get("target_rounds",3)),"target_rounds":s.get("target_rounds",3),"daily_minutes":s.get("minutes_default",180),"days_per_week":s.get("days_per_week",6)})
 
 @app.get("/api/health")
-def health():return {"ok":True,"version":"19.3"}
+def health():return {"ok":True,"version":"20.0"}
 
 @app.post("/api/register")
 def api_register(x:AuthReq):
@@ -118,7 +130,7 @@ def me(authorization:str|None=Header(None)):return require_user(authorization)
 
 @app.get("/api/progress")
 def progress(authorization:str|None=Header(None)):
-    u=require_user(authorization);p=get_progress(u["id"]);identify_tasks(p);refresh_workload(p);return p
+    u=require_user(authorization);p=get_progress(u["id"]);identify_tasks(p);companion(p);refresh_workload(p);return p
 
 @app.put("/api/progress")
 def save(x:SaveReq,authorization:str|None=Header(None)):
@@ -251,7 +263,8 @@ def today(x:PlanReq,authorization:str|None=Header(None)):
         today_key=_today().isoformat()
         same_day=p.get("plan_date",today_key)==today_key
         if not same_day:p.pop("last_completion",None)
-        selection={"version":2,"mode":x.mode,"topics":list(dict.fromkeys(x.academy_topic_indexes)) if x.mode=="academy" else []}
+        indexes=[] if not same_day and not x.replan and x.mode=='academy' else x.academy_topic_indexes
+        selection={"version":2,"mode":x.mode,"topics":list(dict.fromkeys(indexes)) if x.mode=="academy" else []}
         previous=p.get("plan_selection")
         if previous is None:
             # V18/V19 had no plan provenance. Infer academy topics from the actual
@@ -265,7 +278,8 @@ def today(x:PlanReq,authorization:str|None=Header(None)):
             refresh_workload(p)
             return
         completed=[t for t in p.get("tasks",[]) if t.get("done")] if same_day else []
-        p["mode"]=x.mode;p["academy_selected"]=list(dict.fromkeys(x.academy_topic_indexes))
+        extras=[t for t in p.get('tasks',[]) if t.get('extra') and not t.get('done')] if same_day else []
+        p["mode"]=x.mode;p["academy_selected"]=list(dict.fromkeys(indexes))
         old=p.get("settings") or {}
         p["settings"]={"exam_date":x.exam_date.isoformat(),"days_per_week":x.days_per_week,
             "target_rounds":x.target_rounds,"minutes_today":x.minutes,"minutes_default":x.minutes,
@@ -277,18 +291,46 @@ def today(x:PlanReq,authorization:str|None=Header(None)):
             kind=t.get("kind")
             if kind in ("study","academy","urgent_review","maintenance"):kind="reading"
             return (kind,t.get("topic_index"),t.get("block_index"))
-        done_keys={key(t) for t in completed}
+        done_keys={key(t) for t in completed+extras}
         fresh=[t for t in result["tasks"] if key(t) not in done_keys]
         # Completed history is never a limit on today's explicit academy choices.
         # Fresh identities reject a stale completion of a replaced/reshaped task.
         for task in fresh:task["id"]=uuid4().hex
-        p["tasks"]=completed+(fresh if x.mode=="academy" else fresh[:max(0,5-len(completed))])
+        p["tasks"]=completed+(fresh if x.mode=="academy" else fresh[:max(0,5-len(completed))])+extras
         p["plan_date"]=today_key
         p["plan_selection"]=selection
         identify_tasks(p)
         p["roadmap"]=result["roadmap"];p["due_reviews"]=result["due_reviews"]
         refresh_workload(p)
     return mutate_progress(u["id"],change,x.revision)
+
+@app.post('/api/tasks/extra')
+def extra_task(x:ExtraReq,authorization:str|None=Header(None)):
+    u=require_user(authorization)
+    def change(p):
+        if p.get('plan_date') != _today().isoformat():
+            raise HTTPException(409,'Organiza primero el plan de hoy.')
+        if any(t.get('request_id')==x.request_id for t in p.get('tasks',[])):
+            return
+        opp=get_opp_for_progress(p,p.get('selected'))
+        if not opp or x.topic_index >= len(opp['topics']):
+            raise HTTPException(422,'Tema no válido')
+        if any(not t.get('done') and t.get('topic_index')==x.topic_index for t in p.get('tasks',[])):
+            raise HTTPException(409,'Ese tema ya tiene tareas pendientes en Hoy. Termínalas antes de añadir otra sesión.')
+        s=p['settings']
+        result=make_day(opp,x.minutes,p,'academy',[x.topic_index],s['exam_date'],s.get('days_per_week',6),s.get('target_rounds',3))
+        # One explicitly requested study/test session; unrelated reviews stay in the base plan.
+        tasks=[t for t in result['tasks'] if t.get('topic_index')==x.topic_index and (t['kind']=='academy' or t.get('source')=='academy')]
+        for t in tasks:
+            t.update(id=uuid4().hex,extra=True,request_id=x.request_id)
+        p.setdefault('tasks',[]).extend(tasks)
+        refresh_workload(p)
+    return mutate_progress(u['id'],change,x.revision)
+
+@app.post('/api/pet/care')
+def pet_care(x:CareReq,authorization:str|None=Header(None)):
+    u=require_user(authorization)
+    return mutate_progress(u['id'],lambda p:care(p,x.action,x.kind),x.revision)
 
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 @app.get("/")
